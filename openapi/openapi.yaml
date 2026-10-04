@@ -3,7 +3,7 @@
     "info": {
         "title": "GoMad API",
         "version": "0.0.1",
-        "description": "GoMad versioned API contract."
+        "description": "Versioned API contract for GoMad clients."
     },
     "servers": [
         {

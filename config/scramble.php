@@ -50,7 +50,7 @@ return [
         /*
          * Description rendered on the home page of the API documentation (`/docs/api`).
          */
-        'description' => 'GoMad versioned API contract.',
+        'description' => 'Versioned API contract for GoMad clients.',
     ],
 
     'ui' => [
