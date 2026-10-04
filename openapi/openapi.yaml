@@ -1,0 +1,50 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "GoMad API",
+        "version": "0.0.1",
+        "description": "GoMad versioned API contract."
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8200/api",
+            "description": "Local"
+        }
+    ],
+    "paths": {
+        "/v1/health": {
+            "get": {
+                "operationId": "v1.health",
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string",
+                                                    "const": "ok"
+                                                }
+                                            },
+                                            "required": [
+                                                "status"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

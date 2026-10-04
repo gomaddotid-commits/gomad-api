@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+api_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$api_dir"
+
+bash bin/compose exec -T \
+    -e APP_ENV=testing \
+    -e DB_CONNECTION=sqlite \
+    -e DB_DATABASE=:memory: \
+    -e DB_URL= \
+    -e CACHE_STORE=array \
+    -e SESSION_DRIVER=array \
+    -e QUEUE_CONNECTION=sync \
+    -e MAIL_MAILER=array \
+    -e BROADCAST_CONNECTION=null \
+    app php artisan test "$@"

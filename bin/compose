@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+api_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$api_dir"
+
+if [[ ! -f .env ]]; then
+    cp .env.example .env
+fi
+
+LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" \
+    docker compose --env-file .env -f docker/compose.yaml "$@"

@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+api_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$api_dir"
+
+backup_file="${1:-}"
+if [[ -z "$backup_file" ]]; then
+    backup_file="$(find backups -maxdepth 1 -type f -name 'gomad-*.sql' -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d ' ' -f 2-)"
+fi
+
+if [[ -z "$backup_file" || ! -s "$backup_file" ]]; then
+    printf 'A non-empty GoMad SQL backup is required; create one with `docker compose -f docker/compose.yaml exec app php artisan app:backup-db`.\n' >&2
+    exit 1
+fi
+
+restore_database="gomad_restore_$(date -u +%Y%m%d%H%M%S)_$$"
+
+run_root_sql() {
+    bash bin/compose exec -T db sh -c \
+        'exec mariadb --protocol=TCP --user=root --password="$MARIADB_ROOT_PASSWORD" -e "$1"' \
+        sh "$1"
+}
+
+cleanup() {
+    if ! run_root_sql "DROP DATABASE IF EXISTS \`${restore_database}\`;"; then
+        printf 'Could not remove temporary restore database %s.\n' "$restore_database" >&2
+    fi
+}
+trap cleanup EXIT
+
+run_root_sql "CREATE DATABASE \`${restore_database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+bash bin/compose exec -T db sh -c \
+    'exec mariadb --protocol=TCP --user=root --password="$MARIADB_ROOT_PASSWORD" "$1"' \
+    sh "$restore_database" < "$backup_file"
+
+table_count="$(bash bin/compose exec -T db sh -c \
+    'exec mariadb --protocol=TCP --user=root --password="$MARIADB_ROOT_PASSWORD" --batch --skip-column-names -e "$1"' \
+    sh "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${restore_database}';")"
+
+if [[ "$table_count" -eq 0 ]]; then
+    printf 'Restore completed, but database %s contains no tables.\n' "$restore_database" >&2
+    exit 1
+fi
+
+printf 'Backup restored successfully into disposable database %s (%s tables).\n' "$restore_database" "$table_count"

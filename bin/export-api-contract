@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+api_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$api_dir"
+
+bash bin/compose exec -T app \
+    php artisan scramble:export --path=openapi/openapi.yaml
+
+mkdir -p ../mobile/contracts
+cp openapi/openapi.yaml ../mobile/contracts/openapi.yaml
+printf 'Contract exported to %s\n' "$api_dir/../mobile/contracts/openapi.yaml"
