@@ -65,7 +65,7 @@ writeable bind mounts:
 
 ```sh
 bash bin/compose up -d --build
-bash bin/compose exec app php artisan migrate:fresh --seed
+bash bin/compose exec app php artisan migrate --seed
 bash bin/test
 bash bin/compose exec app php artisan app:reset-demo
 bash bin/compose logs -f
@@ -73,35 +73,54 @@ bash bin/compose down
 ```
 
 The local web app is at <http://localhost:8200>; Mailpit is at
-<http://localhost:8125>. MariaDB and Redis are available on host ports 3307 and
-6380. Set `LOCAL_UID` and `LOCAL_GID` in `.env` to the output of `id -u` and
-`id -g` before the first build so bind-mounted files remain writable. Do not
-use the development credentials outside this local environment.
+<http://localhost:8125>; Redis is available on host port 6380. The application
+connects to Aiven MySQL using `../kredensial/aiven-mysql-db.txt` and the
+read-only CA mount `../kredensial/aiven-ca.pem`. `bin/compose` passes credentials
+to Docker without copying them into `.env`; Docker services still hold database
+credentials in their runtime environment. Do not use the Aiven database for
+unreviewed migrations or destructive operations.
 Use `bash bin/test` rather than running tests in the local app environment; it
 forces an in-memory SQLite database so tests cannot reset or write to the
-development MariaDB database.
+development Aiven database. The unused Aiven schema was initialized for GoMad
+after explicit approval to drop its former tables. Continue with additive
+`migrate --seed` only. `app:reset-demo` is reserved for a disposable local
+database and refuses to run against remote MySQL servers; never run
+`migrate:fresh` against Aiven again.
 
 ## Database backups
 
-The scheduler writes daily SQL dumps to `backups/`, retains 30 days, and uses
-temporary credentials with owner-only permissions. Verify an existing backup
-by restoring it into a disposable database:
+The scheduler writes daily SQL dumps from Aiven to local `backups/`, retains 30
+days, and uses a temporary owner-only database credentials file. MySQL dump
+connections verify TLS using the Aiven CA. Verify a dump by restoring it into a
+disposable local MariaDB instance (started only for this check):
 
 ```sh
+bash bin/compose exec app php artisan migrate --seed
 bash bin/compose exec app php artisan app:backup-db
 bash bin/verify-backup-restore
 ```
 
-Local backups are not off-site backups. Before staging or production is
-considered ready, configure encrypted off-host storage, access controls, and
-retention monitoring; run the restore verification against that storage too.
+Local backups are not off-site backups. Cloudflare R2 stores private daily dumps under the `backups/` prefix. Verify
+both the local dump and the latest R2 object by restoring them into a disposable
+local MariaDB database:
+
+```sh
+bash bin/verify-backup-restore
+bash bin/verify-backup-restore --r2-latest
+```
+
+The S3-compatible adapter and bucket are configured from
+`../kredensial/cloudflare-storage-r2.txt`; object uploads are size-verified and
+expire after 30 days. Keep the R2 token limited to the dedicated backup bucket.
 
 ## API contract
 
 The versioned API contract is generated from Laravel routes with Scramble. After
 starting the stack, run `bash bin/export-api-contract` to update
 `openapi/openapi.yaml` and copy it to `../mobile/contracts/openapi.yaml`.
-Configure the API repository's `MOBILE_REPOSITORY` variable and
-`MOBILE_REPOSITORY_TOKEN` secret to send a GitHub `repository_dispatch` event
-when a pushed API change updates the contract. The mobile repository can then
-generate its client from the synced OpenAPI document.
+Configure the API repository's `MOBILE_REPOSITORY_TOKEN` secret with a token
+that has write access to the mobile repository. On a pushed API contract
+change, CI sends the generated OpenAPI document in a `repository_dispatch`
+event; the check fails explicitly if that secret is missing. The mobile
+workflow validates the source and document, then commits only when the
+contract has changed, without needing a token to read the API repository.

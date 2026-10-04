@@ -37,6 +37,8 @@ jobs:
       DB_DATABASE: ":memory:"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
@@ -74,27 +76,28 @@ jobs:
       - name: Notify the mobile repository when the API contract changes
         if: github.event_name == 'push'
         env:
-          MOBILE_REPOSITORY: ${{ vars.MOBILE_REPOSITORY }}
+          MOBILE_REPOSITORY: gomaddotid-commits/gomad-mobile
           MOBILE_REPOSITORY_TOKEN: ${{ secrets.MOBILE_REPOSITORY_TOKEN }}
           EVENT_BEFORE: ${{ github.event.before }}
           EVENT_SHA: ${{ github.sha }}
           SOURCE_REPOSITORY: ${{ github.repository }}
         run: |
-          if [[ -z "$MOBILE_REPOSITORY" || -z "$MOBILE_REPOSITORY_TOKEN" ]]; then
-            echo "Mobile notification is not configured; set the MOBILE_REPOSITORY variable and MOBILE_REPOSITORY_TOKEN secret."
-            exit 0
-          fi
-          if [[ ! "$MOBILE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
-            echo "MOBILE_REPOSITORY must be in owner/repository form." >&2
-            exit 1
-          fi
           if git cat-file -e "${EVENT_BEFORE}^{commit}" 2>/dev/null \
               && git diff --quiet "$EVENT_BEFORE" "$EVENT_SHA" -- openapi/openapi.yaml routes/api.php; then
             echo "The API contract did not change."
             exit 0
           fi
+          if [[ -z "$MOBILE_REPOSITORY_TOKEN" ]]; then
+            echo "Mobile notification is not configured; set the MOBILE_REPOSITORY_TOKEN secret." >&2
+            exit 1
+          fi
+          if (( $(wc -c < openapi/openapi.yaml) > 60000 )); then
+            echo "The generated API contract is too large for a repository_dispatch payload." >&2
+            exit 1
+          fi
           payload="$(jq -n --arg repository "$SOURCE_REPOSITORY" --arg sha "$EVENT_SHA" \
-            '{event_type:"gomad-api-contract-updated",client_payload:{api_repository:$repository,contract_sha:$sha}}')"
+            --rawfile contract openapi/openapi.yaml \
+            '{event_type:"gomad-api-contract-updated",client_payload:{api_repository:$repository,contract_sha:$sha,contract_document:$contract}}')"
           curl --fail-with-body --silent --show-error \
             --request POST \
             --header "Accept: application/vnd.github+json" \

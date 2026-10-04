@@ -18,6 +18,13 @@ class ResetDemo extends Command
             return self::FAILURE;
         }
 
+        if (config('database.default') === 'mysql'
+            && ! in_array(config('database.connections.mysql.host'), ['localhost', '127.0.0.1', 'db'], true)) {
+            $this->error('The demo database cannot be reset on a remote MySQL server.');
+
+            return self::FAILURE;
+        }
+
         return $this->call('migrate:fresh', [
             '--seed' => true,
             '--force' => true,

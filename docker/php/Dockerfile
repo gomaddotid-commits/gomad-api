@@ -33,7 +33,7 @@ COPY docker/php/entrypoint.sh /usr/local/bin/gomad-entrypoint
 
 RUN composer install --no-interaction --prefer-dist --no-progress \
     && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
-    && chown -R www-data:www-data storage bootstrap/cache \
+    && chown -R www-data:www-data vendor storage bootstrap/cache \
     && chmod +x /usr/local/bin/gomad-entrypoint
 
 USER www-data

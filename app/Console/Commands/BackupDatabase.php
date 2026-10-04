@@ -2,14 +2,22 @@
 
 namespace App\Console\Commands;
 
+use App\Services\BackupArchive;
 use Illuminate\Console\Command;
+use Pdo\Mysql;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 class BackupDatabase extends Command
 {
     protected $signature = 'app:backup-db';
 
     protected $description = 'Create a retained MariaDB backup';
+
+    public function __construct(private readonly BackupArchive $archive)
+    {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
@@ -29,6 +37,12 @@ class BackupDatabase extends Command
             return self::FAILURE;
         }
 
+        if (! chmod($directory, 0700)) {
+            $this->error("Could not secure backup directory: {$directory}");
+
+            return self::FAILURE;
+        }
+
         $backupPath = rtrim($directory, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR
             .'gomad-'.now()->utc()->format('Ymd\THis\Z').'-'.bin2hex(random_bytes(4)).'.sql';
         $credentialsPath = tempnam(sys_get_temp_dir(), 'gomad-mariadb-credentials-');
@@ -38,6 +52,8 @@ class BackupDatabase extends Command
 
             return self::FAILURE;
         }
+
+        $previousUmask = umask(0077);
 
         try {
             $credentials = [
@@ -60,6 +76,7 @@ class BackupDatabase extends Command
             $process = new Process([
                 'mariadb-dump',
                 "--defaults-extra-file={$credentialsPath}",
+                ...self::tlsDumpOptions($connection),
                 '--single-transaction',
                 '--quick',
                 '--skip-lock-tables',
@@ -86,10 +103,31 @@ class BackupDatabase extends Command
 
                 return self::FAILURE;
             }
+
+            if (! chmod($backupPath, 0600)) {
+                if (! unlink($backupPath)) {
+                    $this->error("Could not remove the insecure backup: {$backupPath}");
+                }
+                $this->error("Could not secure database backup: {$backupPath}");
+
+                return self::FAILURE;
+            }
         } finally {
+            umask($previousUmask);
+
             if (is_file($credentialsPath) && ! unlink($credentialsPath)) {
                 throw new \RuntimeException('Could not remove the temporary database credentials file.');
             }
+        }
+
+        try {
+            $objectKey = $this->archive->store($backupPath);
+            $this->archive->prune((int) config('backup.retention_days'));
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->error("Cloud backup upload or verification failed; the private local copy was retained at {$backupPath}.");
+
+            return self::FAILURE;
         }
 
         $cutoff = now()->subDays((int) config('backup.retention_days'));
@@ -102,7 +140,7 @@ class BackupDatabase extends Command
             }
         }
 
-        $this->info("Database backup created: {$backupPath}");
+        $this->info("Database backup created locally and verified in cloud storage as {$objectKey}.");
 
         return self::SUCCESS;
     }
@@ -114,5 +152,23 @@ class BackupDatabase extends Command
             ['\\\\', '\\"', '\\n', '\\r'],
             $value,
         );
+    }
+
+    private static function tlsDumpOptions(array $connection): array
+    {
+        $caPath = $connection['options'][Mysql::ATTR_SSL_CA] ?? null;
+
+        if (! is_string($caPath) || $caPath === '') {
+            return [];
+        }
+
+        if (! is_file($caPath) || ! is_readable($caPath)) {
+            throw new \RuntimeException('The configured MySQL CA certificate is missing or unreadable.');
+        }
+
+        return [
+            "--ssl-ca={$caPath}",
+            '--ssl-verify-server-cert',
+        ];
     }
 }

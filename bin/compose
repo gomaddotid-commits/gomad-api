@@ -8,5 +8,70 @@ if [[ ! -f .env ]]; then
     cp .env.example .env
 fi
 
+credentials_file="$api_dir/../kredensial/aiven-mysql-db.txt"
+ca_file="$api_dir/../kredensial/aiven-ca.pem"
+r2_credentials_file="$api_dir/../kredensial/cloudflare-storage-r2.txt"
+
+if [[ ! -r "$credentials_file" || ! -r "$ca_file" || ! -r "$r2_credentials_file" ]]; then
+    printf 'Aiven credentials, Aiven CA certificate, and R2 credentials must exist and be readable in ../kredensial/.\n' >&2
+    exit 1
+fi
+
 LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" \
-    docker compose --env-file .env -f docker/compose.yaml "$@"
+MYSQL_ATTR_SSL_CA=/run/secrets/aiven-ca.pem \
+MYSQL_ATTR_SSL_VERIFY_SERVER_CERT=true \
+    python3 /dev/fd/3 "$api_dir" "$credentials_file" "$r2_credentials_file" "$@" 3<<'PY'
+import os
+import re
+import subprocess
+import sys
+
+api_dir, aiven_file, r2_file, *compose_args = sys.argv[1:]
+
+
+def labelled_value(lines: list[str], label: str) -> str:
+    expected = label.casefold()
+    for index, line in enumerate(lines[:-1]):
+        normalized = re.sub(r'[`*_#|]', '', line).strip().rstrip(':').strip()
+        if normalized.casefold() != expected:
+            continue
+        for following in lines[index + 1:]:
+            value = following.strip().strip('`*_ |')
+            if value:
+                return value
+    raise SystemExit(f'Required R2 credential field is missing: {label}')
+
+
+with open(r2_file, encoding='utf-8') as source:
+    lines = source.read().splitlines()
+
+access_key = labelled_value(lines, 'Access Key ID')
+secret_key = labelled_value(lines, 'Secret Access Key')
+account_id = labelled_value(lines, 'Account ID')
+bucket = labelled_value(lines, 'Buckets')
+
+if not re.fullmatch(r'[A-Za-z0-9._-]{3,63}', bucket):
+    raise SystemExit('The R2 credential document must specify exactly one valid bucket under Buckets.')
+
+if not re.fullmatch(r'[A-Za-z0-9]{32}', account_id):
+    raise SystemExit('The Cloudflare R2 account identifier has an unexpected format.')
+
+environment = os.environ.copy()
+environment.update({
+    'AWS_ACCESS_KEY_ID': access_key,
+    'AWS_SECRET_ACCESS_KEY': secret_key,
+    'AWS_BUCKET': bucket,
+    'AWS_ENDPOINT': f'https://{account_id}.r2.cloudflarestorage.com',
+    'AWS_DEFAULT_REGION': 'auto',
+    'AWS_USE_PATH_STYLE_ENDPOINT': 'false',
+})
+
+command = [
+    'docker', 'compose',
+    '--env-file', os.path.join(api_dir, '.env'),
+    '--env-file', aiven_file,
+    '-f', os.path.join(api_dir, 'docker/compose.yaml'),
+    *compose_args,
+]
+subprocess.run(command, cwd=api_dir, env=environment, check=True)
+PY

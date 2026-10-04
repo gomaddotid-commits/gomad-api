@@ -4,17 +4,40 @@ set -Eeuo pipefail
 api_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$api_dir"
 
-backup_file="${1:-}"
+downloaded_backup=""
+
+if [[ "${1:-}" == "--r2-latest" ]]; then
+    downloaded_backup="$(bash bin/compose exec -T app php artisan app:download-backup)"
+
+    if [[ ! "$downloaded_backup" =~ ^/backups/\.restore-[a-f0-9]+\.sql$ ]]; then
+        printf 'The R2 backup download did not return a valid private restore path.\n' >&2
+        exit 1
+    fi
+
+    backup_file="backups/$(basename "$downloaded_backup")"
+    cleanup_download() {
+        if [[ -n "$downloaded_backup" && -f "$backup_file" ]] && ! rm -- "$backup_file"; then
+            printf 'Could not remove the temporary R2 restore file.\n' >&2
+            return 1
+        fi
+    }
+    trap cleanup_download EXIT
+else
+    backup_file="${1:-}"
+fi
+
 if [[ -z "$backup_file" ]]; then
     backup_file="$(find backups -maxdepth 1 -type f -name 'gomad-*.sql' -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d ' ' -f 2-)"
 fi
 
 if [[ -z "$backup_file" || ! -s "$backup_file" ]]; then
-    printf 'A non-empty GoMad SQL backup is required; create one with `docker compose -f docker/compose.yaml exec app php artisan app:backup-db`.\n' >&2
+    printf 'A non-empty GoMad SQL backup is required; use `bash bin/compose exec app php artisan app:backup-db` first.\n' >&2
     exit 1
 fi
 
 restore_database="gomad_restore_$(date -u +%Y%m%d%H%M%S)_$$"
+
+bash bin/compose --profile backup-restore up --detach --wait --wait-timeout 90 db
 
 run_root_sql() {
     bash bin/compose exec -T db sh -c \
