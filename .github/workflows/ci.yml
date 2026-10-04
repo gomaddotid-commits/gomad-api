@@ -50,6 +50,8 @@ jobs:
           cache: npm
       - uses: ramsey/composer-install@v3
       - run: npm ci
+      - name: Build frontend assets
+        run: npm run build
       - name: Check formatting
         run: ./vendor/bin/pint --test
       - name: Run unit, integration, and architecture tests
@@ -71,8 +73,6 @@ jobs:
         run: |
           php artisan scramble:export --path=openapi/openapi.yaml
           git diff --exit-code -- openapi/openapi.yaml
-      - name: Build frontend assets
-        run: npm run build
       - name: Notify the mobile repository when the API contract changes
         if: github.event_name == 'push'
         env:
