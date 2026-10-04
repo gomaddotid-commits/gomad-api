@@ -124,3 +124,11 @@ change, CI sends the generated OpenAPI document in a `repository_dispatch`
 event; the check fails explicitly if that secret is missing. The mobile
 workflow validates the source and document, then commits only when the
 contract has changed, without needing a token to read the API repository.
+
+## Render staging
+
+The Render web service uses `docker/render/Dockerfile` to serve Nginx and
+PHP-FPM in one container. The Fase 0 staging instance uses an isolated,
+ephemeral SQLite database, file sessions/cache, and synchronous queues; it
+does not connect to Aiven or share local data. Its health check is
+`/api/v1/health`. Do not use this minimal staging configuration for production.
