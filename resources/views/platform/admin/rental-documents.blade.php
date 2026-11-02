@@ -5,22 +5,22 @@
 @section('content')
     @include('platform.admin._nav', ['active' => 'documents'])
 
-    <div class="card">
-        <h1>Verifikasi dokumen sewa</h1>
-        <p class="muted">
+    <div class="gm-surface p-5 mb-4">
+        <h1 class="gm-h2 text-black-900 mb-1">Verifikasi dokumen sewa</h1>
+        <p class="text-sm text-gray-500">
             Hanya admin platform. Dokumen yang belum diverifikasi tampil lebih dulu.
             Agency tidak dapat memverifikasi maupun melihat dokumen di luar masa sewa berjalan.
         </p>
     </div>
 
-    <div class="card">
+    <div class="gm-surface p-5 mb-4">
         @forelse ($documents as $document)
-            <div style="border-top:1px solid #e6edee;padding:14px 0">
+            <div class="gm-list-block">
                 <div class="row">
                     <div>
                         <strong>{{ $document->label() }}</strong>
                         · {{ $document->user?->name }} ({{ $document->user?->email }})<br>
-                        <span class="muted">
+                        <span class="text-sm text-gray-500">
                             {{ $document->status }}
                             @if ($document->verified_at)
                                 · {{ $document->verified_at->toDateTimeString() }}
@@ -40,7 +40,7 @@
                         <form class="inline" method="post"
                               action="{{ route('admin.rental-documents.verify', $document) }}">
                             @csrf
-                            <button type="submit">Verifikasi</button>
+                            <x-gm.button type="submit">Verifikasi</x-gm.button>
                         </form>
                         <form class="inline" method="post"
                               action="{{ route('admin.rental-documents.reject', $document) }}">
@@ -53,7 +53,7 @@
                 @endif
             </div>
         @empty
-            <p class="muted">Belum ada dokumen yang diunggah.</p>
+            <p class="text-sm text-gray-500">Belum ada dokumen yang diunggah.</p>
         @endforelse
     </div>
 @endsection

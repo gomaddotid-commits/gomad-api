@@ -22,66 +22,94 @@
         ];
     @endphp
 
-    <div class="card">
-        <h1>Kalender armada</h1>
-        <p class="muted">
-            {{ $vehicle->name }} · {{ $vehicle->plate_number }} · {{ $business->name }}
-        </p>
-        <p class="muted">
-            Hari bertanda <strong>terpakai</strong> sudah dipakai sewa yang menunggu/dibayar/berjalan
-            atau jadwal travel dengan armada ini.
-        </p>
-        <p><a href="{{ route('rental.show', $business) }}">← Kembali ke sewa kendaraan</a></p>
-    </div>
+    <x-gm.page-header
+        eyebrow="Rental"
+        title="Kalender armada"
+        :subtitle="$vehicle->name.' · '.$vehicle->plate_number.' · '.$business->name">
+        <x-slot:actions>
+            <a href="{{ route('rental.show', $business) }}">
+                <x-gm.button type="button" variant="secondary">← Sewa kendaraan</x-gm.button>
+            </a>
+        </x-slot:actions>
+    </x-gm.page-header>
 
-    <div class="card">
-        <div class="row" style="align-items:center;justify-content:space-between">
+    <x-gm.card :padded="false">
+        {{-- Navigasi bulan: tiga tujuan yang selalu sama, jadi tidak perlu dijelaskan. --}}
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-5 py-4">
             <div>
-                <strong>{{ $monthLabels[(int) $month->month] }} {{ $month->year }}</strong>
-                <span class="muted"> · {{ count($takenDays) }} hari terpakai</span>
+                <p class="text-base font-semibold text-black-900">
+                    {{ $monthLabels[(int) $month->month] }} {{ $month->year }}
+                </p>
+                <p class="mt-0.5 text-xs text-gray-500">{{ count($takenDays) }} hari terpakai</p>
             </div>
-            <div>
-                <a href="{{ route('rental.calendar', [$business, $vehicle, 'month' => $prevMonth->format('Y-m')]) }}">← Bulan lalu</a>
-                <a href="{{ route('rental.calendar', [$business, $vehicle, 'month' => now()->format('Y-m')]) }}">Bulan ini</a>
-                <a href="{{ route('rental.calendar', [$business, $vehicle, 'month' => $nextMonth->format('Y-m')]) }}">Bulan depan →</a>
+
+            <div class="flex flex-wrap items-center gap-1">
+                <a href="{{ route('rental.calendar', [$business, $vehicle, 'month' => $prevMonth->format('Y-m')]) }}">
+                    <x-gm.button type="button" size="sm" variant="ghost">← Bulan lalu</x-gm.button>
+                </a>
+                <a href="{{ route('rental.calendar', [$business, $vehicle, 'month' => now()->format('Y-m')]) }}">
+                    <x-gm.button type="button" size="sm" variant="secondary">Bulan ini</x-gm.button>
+                </a>
+                <a href="{{ route('rental.calendar', [$business, $vehicle, 'month' => $nextMonth->format('Y-m')]) }}">
+                    <x-gm.button type="button" size="sm" variant="ghost">Bulan depan →</x-gm.button>
+                </a>
             </div>
         </div>
 
-        <table style="width:100%;margin-top:12px;border-collapse:collapse;table-layout:fixed">
-            <thead>
-                <tr>
+        {{--
+            Kalender memakai grid Tailwind, bukan tabel bergaya inline.
+            Keterangan warna tidak boleh jadi satu-satunya penanda (§12.5), jadi
+            hari terpakai juga memuat label teks penyebabnya.
+        --}}
+        <div class="overflow-x-auto p-3">
+            <div class="min-w-[560px]">
+                <div class="grid grid-cols-7 gap-1">
                     @foreach ($weekdayLabels as $label)
-                        <th style="padding:6px;font-size:12px;color:#5b7071;text-align:left">{{ $label }}</th>
+                        <div class="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            {{ $label }}
+                        </div>
                     @endforeach
-                </tr>
-            </thead>
-            <tbody>
-                @foreach ($rows as $row)
-                    <tr>
+
+                    @foreach ($rows as $row)
                         @foreach ($row as $day)
                             @php
                                 $date = $day === null ? null : $month->copy()->day($day);
                                 $key = $date?->toDateString();
                                 $entries = $key !== null ? ($takenDays[$key] ?? []) : [];
                                 $isTaken = $entries !== [];
+                                $isToday = $key === $today;
                             @endphp
-                            <td style="border:1px solid #e6edee;vertical-align:top;height:76px;padding:6px;
-                                {{ $isTaken ? 'background:#fdecec' : 'background:#fff' }}">
+
+                            <div class="min-h-[76px] rounded-md border p-2
+                                        {{ $isTaken
+                                            ? 'border-error-600/30 bg-error-600/5'
+                                            : 'border-gray-200 bg-white' }}">
                                 @if ($day !== null)
-                                    <div style="font-size:13px;{{ $key === $today ? 'font-weight:700' : '' }}">
+                                    <p class="text-[13px] {{ $isToday ? 'font-bold text-black-900' : 'font-medium text-gray-600' }}">
                                         {{ $day }}
-                                    </div>
+                                        @if ($isToday)
+                                            <span class="ml-1 text-[10px] font-semibold uppercase text-gomad-green">hari ini</span>
+                                        @endif
+                                    </p>
+
                                     @foreach ($entries as $entry)
-                                        <div style="font-size:11px;color:#8a3b3b;margin-top:2px">
+                                        <p class="mt-1 text-[11px] leading-snug text-error-600">
                                             {{ $entry['label'] }}
-                                        </div>
+                                        </p>
                                     @endforeach
                                 @endif
-                            </td>
+                            </div>
                         @endforeach
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-200 px-5 py-3">
+            <p class="text-xs text-gray-500">
+                Hari bertanda merah sudah dipakai sewa yang menunggu/dibayar/berjalan, atau jadwal travel
+                dengan armada ini.
+            </p>
+        </div>
+    </x-gm.card>
 @endsection

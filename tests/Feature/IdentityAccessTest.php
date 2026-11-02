@@ -358,6 +358,55 @@ class IdentityAccessTest extends TestCase
         ]);
     }
 
+    public function test_guard_can_only_belong_to_one_warung(): void
+    {
+        $ownerA = User::factory()->create();
+        $warungA = $this->businessFor($ownerA);
+        $ownerB = User::factory()->create();
+        $warungB = $this->businessFor($ownerB);
+
+        $guard = User::factory()->accountType(AccountType::WarungGuard)->create([
+            'phone' => '+6281234567897',
+        ]);
+        $warungA->members()->attach($guard, [
+            'role' => 'penjaga',
+            'status' => 'active',
+            'joined_at' => now(),
+        ]);
+
+        // Undangan kedua langsung ditolak saat dibuat: tidak ada gunanya mengirim
+        // tautan yang pasti gagal saat diterima.
+        $ownerBToken = $ownerB->createToken('test-device')->plainTextToken;
+        $this->withToken($ownerBToken)
+            ->postJson('/api/v1/businesses/'.$warungB->id.'/invitations', [
+                'phone' => '0812-3456-7897',
+                'role' => 'penjaga',
+            ])->assertUnprocessable()
+            ->assertJsonPath('code', 'VALIDATION_FAILED');
+
+        // Undangan yang terlanjur dibuat (mis. sebelum keanggotaan pertama aktif)
+        // tetap ditolak saat diterima — aturan sebenarnya ada di acceptance.
+        $plainToken = bin2hex(random_bytes(16));
+        BusinessInvitation::query()->create([
+            'business_id' => $warungB->id,
+            'invited_by' => $ownerB->id,
+            'phone' => '+6281234567897',
+            'role' => 'penjaga',
+            'token_hash' => hash('sha256', $plainToken),
+            'expires_at' => now()->addDays(7),
+        ]);
+
+        $this->actingAs($guard, 'sanctum')
+            ->postJson('/api/v1/invitations/accept', ['token' => $plainToken])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'VALIDATION_FAILED');
+
+        $this->assertDatabaseMissing('business_members', [
+            'business_id' => $warungB->id,
+            'user_id' => $guard->id,
+        ]);
+    }
+
     private function businessFor(User $owner): Business
     {
         $business = Business::query()->create([

@@ -6,6 +6,7 @@ use App\Core\Access\Application\ActionAuthorizer;
 use App\Core\Identity\Domain\PhoneNumber;
 use App\Models\Business;
 use App\Models\BusinessInvitation;
+use App\Models\BusinessMember;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -45,6 +46,26 @@ final class IssueBusinessInvitation
             throw ValidationException::withMessages([
                 'phone' => ['Pengguna dengan peran tersebut sudah menjadi anggota usaha ini.'],
             ]);
+        }
+
+        /*
+        | Satu penjaga, satu warung — dicek juga di sini supaya pemilik tidak
+        | mengirim undangan yang pasti ditolak saat diterima. Aturan sebenarnya
+        | tetap di AcceptBusinessInvitation; ini hanya umpan balik lebih awal.
+        */
+        if ($role === 'penjaga') {
+            $otherWarung = BusinessMember::query()
+                ->whereHas('user', fn ($query) => $query->where('phone', $phone))
+                ->where('role', 'penjaga')
+                ->where('status', 'active')
+                ->where('business_id', '!=', $business->getKey())
+                ->exists();
+
+            if ($otherWarung) {
+                throw ValidationException::withMessages([
+                    'phone' => ['Nomor ini sudah menjadi penjaga di warung lain. Satu penjaga hanya untuk satu warung.'],
+                ]);
+            }
         }
 
         $token = bin2hex(random_bytes(32));

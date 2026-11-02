@@ -5,17 +5,17 @@
 @section('content')
     @include('platform.admin._nav', ['active' => 'promos'])
 
-    <div class="card">
-        <h1>Promo platform</h1>
-        <p class="muted">
+    <div class="gm-surface p-5 mb-4">
+        <h1 class="gm-h2 text-black-900 mb-1">Promo platform</h1>
+        <p class="text-sm text-gray-500">
             Promo di sini <strong>ditanggung platform</strong>: pendapatan platform berkurang, tetapi
             agency tetap menerima bagian penuhnya. Hanya admin GoMad yang dapat membuatnya.
         </p>
         <p><a href="{{ route('dashboard') }}">← Kembali</a></p>
     </div>
 
-    <div class="card">
-        <h2>Buat promo</h2>
+    <div class="gm-surface p-5 mb-4">
+        <h2 class="gm-h4 text-black-900 mb-2">Buat promo</h2>
         <form method="post" action="{{ route('admin.promos.store') }}">
             @csrf
             <label for="code">Kode promo</label>
@@ -58,17 +58,17 @@
             <label for="per_user_limit">Batas per pengguna</label>
             <input id="per_user_limit" name="per_user_limit" type="number" min="1" max="100" value="1">
 
-            <button type="submit">Buat promo platform</button>
+            <x-gm.button type="submit">Buat promo platform</x-gm.button>
         </form>
     </div>
 
-    <div class="card">
-        <h2>Daftar promo platform</h2>
+    <div class="gm-surface p-5 mb-4">
+        <h2 class="gm-h4 text-black-900 mb-2">Daftar promo platform</h2>
         @forelse ($promos as $promo)
-            <div class="row" style="border-top:1px solid #e6edee;padding:10px 0">
+            <div class="gm-list-row">
                 <div>
                     <strong>{{ $promo->code }}</strong> · {{ $promo->name }}<br>
-                    <span class="muted">
+                    <span class="text-sm text-gray-500">
                         {{ $promo->discount_type === 'percent'
                             ? rtrim(rtrim((string) $promo->discount_value, '0'), '.').'%'
                             : 'Rp '.number_format((float) $promo->discount_value, 0, ',', '.') }}
@@ -79,20 +79,20 @@
                         · dipakai {{ $promo->used_count }}{{ $promo->usage_limit !== null ? '/'.$promo->usage_limit : '' }}
                     </span>
                 </div>
-                <div><span class="muted">{{ $promo->status }}</span></div>
+                <div><span class="text-sm text-gray-500">{{ $promo->status }}</span></div>
             </div>
         @empty
-            <p class="muted">Belum ada promo platform.</p>
+            <p class="text-sm text-gray-500">Belum ada promo platform.</p>
         @endforelse
     </div>
 
-    <div class="card">
-        <h2>Beban promo platform</h2>
-        <p class="muted">
+    <div class="gm-surface p-5 mb-4">
+        <h2 class="gm-h4 text-black-900 mb-2">Beban promo platform</h2>
+        <p class="text-sm text-gray-500">
             Total diskon yang ditanggung platform: <strong>Rp {{ number_format((float) $totalDiscount, 0, ',', '.') }}</strong>
         </p>
         @forelse ($redemptions as $redemption)
-            <div class="row" style="border-top:1px solid #e6edee;padding:8px 0">
+            <div class="gm-list-row">
                 <div>
                     <strong>{{ $redemption->promo?->code }}</strong>
                     · {{ $redemption->reference_type }} #{{ $redemption->reference_id }}
@@ -100,7 +100,7 @@
                 <div class="muted">Rp {{ number_format((float) $redemption->discount_amount, 0, ',', '.') }}</div>
             </div>
         @empty
-            <p class="muted">Belum ada pemakaian.</p>
+            <p class="text-sm text-gray-500">Belum ada pemakaian.</p>
         @endforelse
     </div>
 @endsection

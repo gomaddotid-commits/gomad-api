@@ -3,9 +3,9 @@
 @section('title', 'Jadwal '.$schedule->departure_date->toDateString())
 
 @section('content')
-    <div class="card">
-        <h1>{{ $schedule->route->origin_city }} → {{ $schedule->route->destination_city }}</h1>
-        <p class="muted">
+    <div class="gm-surface p-5 mb-4">
+        <h1 class="gm-h2 text-black-900 mb-1">{{ $schedule->route->origin_city }} → {{ $schedule->route->destination_city }}</h1>
+        <p class="text-sm text-gray-500">
             {{ $schedule->departure_date->toDateString() }}
             {{ substr((string) $schedule->departure_time, 0, 5) }} ·
             {{ $schedule->vehicle->name }} ({{ $schedule->vehicle->plate_number }}) ·
@@ -19,28 +19,28 @@
         <p><a href="{{ route('mad-trans.agency.show', $business) }}">← Kembali ke portal agency</a></p>
     </div>
 
-    <div class="card">
-        <h2>Pesanan</h2>
+    <div class="gm-surface p-5 mb-4">
+        <h2 class="gm-h4 text-black-900 mb-2">Pesanan</h2>
 
         @forelse ($bookings as $booking)
-            <div style="border-top:1px solid #e6edee;padding:14px 0">
+            <div class="gm-list-block">
                 <div class="row">
                     <div>
                         <strong>{{ $booking->code }}</strong><br>
-                        <span class="muted">{{ $booking->status }} · Rp {{ number_format((float) $booking->total_price, 0, ',', '.') }}</span><br>
-                        <span class="muted">
+                        <span class="text-sm text-gray-500">{{ $booking->status }} · Rp {{ number_format((float) $booking->total_price, 0, ',', '.') }}</span><br>
+                        <span class="text-sm text-gray-500">
                             {{ $booking->originStop?->name ?? '—' }} → {{ $booking->destinationStop?->name ?? '—' }}
                         </span>
                     </div>
                     <div>
-                        <span class="muted">{{ $booking->created_at?->toDateTimeString() }}</span>
+                        <span class="text-sm text-gray-500">{{ $booking->created_at?->toDateTimeString() }}</span>
                     </div>
                 </div>
                 <ul>
                     @foreach ($booking->passengers as $passenger)
                         <li>
                             {{ $passenger->name }} — kursi {{ $passenger->seat_snapshot ?? '—' }}
-                            <span class="muted">
+                            <span class="text-sm text-gray-500">
                                 ({{ $passenger->boarded_at ? 'sudah naik' : ($passenger->no_show_at ? 'tidak naik' : 'belum naik') }})
                             </span>
                         </li>
@@ -60,12 +60,12 @@
                                 </option>
                             @endforeach
                         </select>
-                        <button type="submit">Pindahkan pesanan</button>
+                        <x-gm.button type="submit">Pindahkan pesanan</x-gm.button>
                     </form>
                 @endif
             </div>
         @empty
-            <p class="muted">Belum ada pesanan untuk jadwal ini.</p>
+            <p class="text-sm text-gray-500">Belum ada pesanan untuk jadwal ini.</p>
         @endforelse
     </div>
 @endsection

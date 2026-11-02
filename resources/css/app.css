@@ -310,6 +310,47 @@
     }
 }
 
+/*
+| Baris daftar di dalam kartu (§7.5 "data table", versi daftar).
+|
+| Sebelumnya pola ini ditulis sebagai `class="row" style="border-top:1px solid
+| #e6edee;padding:10px 0"` di belasan view — hex yang bahkan tidak ada lagi di
+| palet, dan tiga nilai padding berbeda untuk hal yang sama. Satu utilitas
+| menggantikannya, dan baris pertama tidak pernah memakai garis atas.
+*/
+@utility gm-list-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-top: 1px solid var(--color-gray-200);
+    padding-block: 12px;
+
+    &:first-child {
+        border-top: 0;
+        padding-block-start: 0;
+    }
+
+    &:last-child {
+        padding-block-end: 0;
+    }
+}
+
+@utility gm-list-block {
+    border-top: 1px solid var(--color-gray-200);
+    padding-block: 14px;
+
+    &:first-child {
+        border-top: 0;
+        padding-block-start: 0;
+    }
+
+    &:last-child {
+        padding-block-end: 0;
+    }
+}
+
 /* §7.3 permukaan operasional: padat, garis tipis, tanpa blur. */
 @utility gm-surface {
     background-color: var(--color-surface-raised);

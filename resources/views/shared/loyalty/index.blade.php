@@ -3,65 +3,92 @@
 @section('title', 'Level & misi | GoMad')
 
 @section('content')
-    <div class="card">
-        <h1>Level &amp; misi</h1>
-        <div class="row">
-            <span>Level Anda</span>
-            <strong>{{ $summary['level']['name'] }}</strong>
-        </div>
-        <div class="row">
-            <span>Poin</span>
-            <strong>{{ number_format($summary['points'], 0, ',', '.') }}</strong>
-        </div>
+    {{--
+        Level & misi. Pelanggan membuka ini untuk satu pertanyaan: "berapa lagi
+        supaya naik level?" Karena itu poin dan bilah kemajuan taruh paling atas,
+        sebelum daftar misi.
+    --}}
+    <x-gm.page-header
+        eyebrow="Akun"
+        title="Level & misi"
+        :subtitle="'Level Anda sekarang: '.$summary['level']['name']">
+        <x-slot:actions>
+            <a href="{{ route('dashboard') }}">
+                <x-gm.button type="button" variant="secondary">← Beranda</x-gm.button>
+            </a>
+        </x-slot:actions>
+    </x-gm.page-header>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+        <x-gm.stat label="Poin"
+            :value="number_format($summary['points'], 0, ',', '.')"
+            hint="Setiap Rp 10.000 transaksi lunas menambah 1 poin"
+            tone="brand" />
+        <x-gm.stat label="Level"
+            :value="$summary['level']['name']"
+            :hint="$summary['next'] !== null
+                ? number_format($summary['to_next'], 0, ',', '.').' poin lagi menuju '.$summary['next']['name']
+                : 'Sudah di level tertinggi'" />
+    </div>
+
+    <x-gm.card class="mt-4" title="Kemajuan level">
         @if ($summary['next'] !== null)
-            <div class="row">
-                <span>Menuju {{ $summary['next']['name'] }}</span>
-                <strong>{{ number_format($summary['to_next'], 0, ',', '.') }} poin lagi</strong>
+            <div class="flex items-center justify-between text-sm">
+                <span class="font-semibold text-black-900">{{ $summary['level']['name'] }}</span>
+                <span class="text-gray-500">{{ $summary['next']['name'] }}</span>
             </div>
-            <div style="background:#e6edee;border-radius:999px;height:10px;margin-top:8px">
-                <div style="background:#1f7a6d;height:10px;border-radius:999px;width:{{ $summary['progress_percent'] }}%"></div>
+            <div class="mt-2 h-2.5 w-full overflow-hidden rounded-pill bg-gray-100"
+                 role="img"
+                 aria-label="Kemajuan {{ $summary['progress_percent'] }} persen menuju {{ $summary['next']['name'] }}">
+                <div class="h-full rounded-pill bg-gomad-green" style="width: {{ $summary['progress_percent'] }}%"></div>
             </div>
+            <p class="muted mt-2">{{ number_format($summary['to_next'], 0, ',', '.') }} poin lagi.</p>
         @else
             <p class="muted">Anda sudah di level tertinggi.</p>
         @endif
-        <p class="muted">Setiap Rp 10.000 transaksi lunas menambah 1 poin.</p>
-        <p><a href="{{ route('dashboard') }}">← Kembali</a></p>
-    </div>
+    </x-gm.card>
 
-    <div class="card">
-        <h2>Misi</h2>
-        @foreach ($summary['missions'] as $mission)
-            <div class="row" style="border-top:1px solid #e6edee;padding:10px 0">
-                <div>
-                    <strong>{{ $mission['title'] }}</strong>
-                    @if ($mission['done'])
-                        <span class="muted"> · selesai</span>
-                    @endif
-                    <br>
-                    <span class="muted">{{ $mission['description'] }}</span>
+    <x-gm.card class="mt-4" title="Misi" :padded="false">
+        <div class="divide-y divide-gray-100">
+            @forelse ($summary['missions'] as $mission)
+                <div class="gm-list-row px-5">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-black-900">
+                            {{ $mission['title'] }}
+                            @if ($mission['done'])
+                                <x-gm.badge tone="success" class="ml-1">Selesai</x-gm.badge>
+                            @endif
+                        </p>
+                        <p class="mt-0.5 text-xs text-gray-500">{{ $mission['description'] }}</p>
+                    </div>
+                    <p class="text-sm text-gray-500">{{ $mission['progress'] }}/{{ $mission['target'] }}</p>
                 </div>
-                <div class="muted">
-                    {{ $mission['progress'] }}/{{ $mission['target'] }}
-                </div>
-            </div>
-        @endforeach
-    </div>
+            @empty
+                <p class="px-5 py-6 text-sm text-gray-500">Belum ada misi untuk level Anda.</p>
+            @endforelse
+        </div>
+    </x-gm.card>
 
-    <div class="card">
-        <h2>Riwayat poin</h2>
-        @forelse ($events as $event)
-            <div class="row" style="border-top:1px solid #e6edee;padding:8px 0">
-                <div>
-                    <strong>{{ $event->kind }}</strong><br>
-                    <span class="muted">{{ $event->reference_type }} #{{ $event->reference_id }}</span>
+    <x-gm.card class="mt-4" title="Riwayat poin" :padded="false">
+        <div class="divide-y divide-gray-100">
+            @forelse ($events as $event)
+                <div class="gm-list-row px-5">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-black-900">{{ $event->kind }}</p>
+                        <p class="mt-0.5 text-xs text-gray-500">
+                            {{ $event->reference_type }} #{{ $event->reference_id }}
+                        </p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm font-semibold text-success-600">+{{ $event->points }} poin</p>
+                        <p class="text-xs text-gray-500">{{ $event->occurred_at?->format('d M Y H:i') }}</p>
+                    </div>
                 </div>
-                <div class="muted">
-                    +{{ $event->points }} poin
-                    · {{ $event->occurred_at?->toDateTimeString() }}
-                </div>
-            </div>
-        @empty
-            <p class="muted">Belum ada poin. Selesaikan transaksi pertama Anda.</p>
-        @endforelse
-    </div>
+            @empty
+                <p class="px-5 py-6 text-sm text-gray-500">
+                    Belum ada poin. Selesaikan transaksi pertama Anda.
+                </p>
+            @endforelse
+        </div>
+    </x-gm.card>
 @endsection

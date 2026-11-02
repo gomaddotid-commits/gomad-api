@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\MadTrans\Customer\MadTransController;
 use App\Http\Controllers\Api\V1\MadTrans\Rental\RentalController;
 use App\Http\Controllers\Api\V1\MadTrans\Rental\RentalDocumentController;
+use App\Http\Controllers\Api\V1\MadTrans\Travel\DriverScheduleController;
 use App\Http\Controllers\Api\V1\MadTrans\Travel\MadTransAgencyController;
 use Illuminate\Support\Facades\Route;
 
@@ -46,8 +47,13 @@ Route::middleware(['auth:sanctum', 'area:customer'])->group(function (): void {
     Route::post('/rental-documents', [RentalDocumentController::class, 'store'])->name('api.v1.rental-documents.store');
 });
 
-// ---- Supir: boarding penumpang COD ----
+// ---- Supir: tugas yang ditugaskan, boarding penumpang COD ----
 Route::middleware(['auth:sanctum', 'area:driver'])->group(function (): void {
+    Route::get('/mad-trans/driver/schedules', [DriverScheduleController::class, 'index'])
+        ->name('api.v1.mad-trans.driver.schedules.index');
+    Route::get('/mad-trans/driver/schedules/{schedule}', [DriverScheduleController::class, 'show'])
+        ->whereNumber('schedule')
+        ->name('api.v1.mad-trans.driver.schedules.show');
     Route::post('/mad-trans/bookings/{booking}/passengers/{passenger}/board', [MadTransController::class, 'boardCodPassenger'])
         ->name('api.v1.mad-trans.bookings.passengers.board');
     Route::post('/mad-trans/bookings/{booking}/passengers/{passenger}/no-show', [MadTransController::class, 'markCodNoShow'])

@@ -14,6 +14,7 @@ use App\Models\RetailListing;
 use App\Models\RetailSale;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -174,6 +175,97 @@ class RetailPosTest extends TestCase
             ->assertSee('Simpan penjualan');
     }
 
+    // ---- API parity (blueprint/04: setiap halaman punya pasangan API) ----
+
+    /**
+     * Aplikasi native menemukan warung lewat `/v1/me/memberships`. Bila penjaga
+     * tidak muncul di sana, kasir di ponsel tidak punya cara mengetahui warung
+     * mana yang harus dibuka — persis kegagalan yang ditemukan saat uji live
+     * (baris keanggotaan penjaga hilang dan seed ulang tidak memperbaikinya).
+     */
+    public function test_api_memberships_include_warung_for_guard(): void
+    {
+        [$owner, $guard, $warung, $wholesaler, $product] = $this->warung();
+
+        $this->apiAs($guard)
+            ->getJson('/api/v1/me/memberships')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $warung->getKey())
+            ->assertJsonPath('data.0.type', 'warung')
+            ->assertJsonPath('data.0.role', 'penjaga');
+    }
+
+    public function test_api_lists_sellable_products_for_guard(): void
+    {
+        [$owner, $guard, $warung, $wholesaler, $product] = $this->warung();
+        $this->listing($warung, $product, '15000.00');
+
+        $this->apiAs($guard)
+            ->getJson('/api/v1/warung/businesses/'.$warung->getKey().'/pos')
+            ->assertOk()
+            ->assertJsonPath('data.listings.0.product_id', $product->getKey())
+            ->assertJsonPath('data.listings.0.price', '15000.00')
+            ->assertJsonPath('data.today.count', 0);
+    }
+
+    public function test_api_records_sale_and_ignores_client_price(): void
+    {
+        [$owner, $guard, $warung, $wholesaler, $product] = $this->warung();
+        $this->listing($warung, $product, '15000.00');
+
+        $this->apiAs($guard)
+            ->postJson('/api/v1/warung/businesses/'.$warung->getKey().'/pos/sales', [
+                'items' => [['product_id' => $product->getKey(), 'quantity' => 2]],
+                'paid_amount' => '50000',
+                'unit_price' => '1.00',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.total_amount', '30000.00')
+            ->assertJsonPath('data.paid_amount', '50000.00')
+            ->assertJsonPath('data.change_amount', '20000.00')
+            ->assertJsonPath('data.items.0.unit_price', '15000.00');
+    }
+
+    public function test_api_rejects_overpayment_shortfall_with_422(): void
+    {
+        [$owner, $guard, $warung, $wholesaler, $product] = $this->warung();
+        $this->listing($warung, $product, '15000.00');
+
+        $this->apiAs($guard)
+            ->postJson('/api/v1/warung/businesses/'.$warung->getKey().'/pos/sales', [
+                'items' => [['product_id' => $product->getKey(), 'quantity' => 2]],
+                'paid_amount' => '20000',
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Uang diterima kurang dari total belanja.');
+
+        $this->assertSame(0, RetailSale::query()->count());
+    }
+
+    public function test_api_owner_can_read_sales_but_cannot_sell(): void
+    {
+        [$owner, $guard, $warung, $wholesaler, $product] = $this->warung();
+        $this->listing($warung, $product, '15000.00');
+
+        $this->apiAs($guard)
+            ->postJson('/api/v1/warung/businesses/'.$warung->getKey().'/pos/sales', [
+                'items' => [['product_id' => $product->getKey(), 'quantity' => 1]],
+            ])
+            ->assertCreated();
+
+        $this->apiAs($owner)
+            ->getJson('/api/v1/warung/businesses/'.$warung->getKey().'/pos/sales')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.total_amount', '15000.00');
+
+        $this->apiAs($owner)
+            ->postJson('/api/v1/warung/businesses/'.$warung->getKey().'/pos/sales', [
+                'items' => [['product_id' => $product->getKey(), 'quantity' => 1]],
+            ])
+            ->assertForbidden();
+    }
+
     public function test_empty_cart_is_rejected(): void
     {
         [$owner, $guard, $warung, $wholesaler, $product] = $this->warung();
@@ -244,6 +336,17 @@ class RetailPosTest extends TestCase
             'price' => $price,
             'is_active' => true,
         ]);
+    }
+
+    /**
+     * Autentikasi API memakai token Sanctum, bukan sesi — sama seperti tes lain
+     * di repo ini.
+     */
+    private function apiAs(User $user): static
+    {
+        Auth::forgetGuards();
+
+        return $this->withToken($user->createToken('retail-pos-test')->plainTextToken);
     }
 
     private function orderInDelivery(

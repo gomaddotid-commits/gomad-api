@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 class BusinessController extends Controller
 {
@@ -33,11 +34,24 @@ class BusinessController extends Controller
             ]);
         }
 
+        /*
+        | Tipe divalidasi terhadap daftar statis, bukan terhadap `$type` yang baru
+        | dihitung: nilai hasil pemanggilan method tidak terbaca generator kontrak,
+        | sehingga `type` tidak punya enum di OpenAPI. Kecocokan dengan jenis akun
+        | tetap diputuskan CreateBusiness, dan galatnya diterjemahkan menjadi 422
+        | di bawah supaya klien tidak menerima 500.
+        */
         $data = $request->validate([
             'name' => ['required', 'string', 'min:2', 'max:150'],
-            'type' => ['required', Rule::in([$type])],
+            'type' => ['required', Rule::in(['warung', 'grosir', 'agency'])],
         ]);
-        $business = $createBusiness->execute($request->user(), $data['name'], $data['type']);
+
+        try {
+            $business = $createBusiness->execute($request->user(), $data['name'], $data['type']);
+        } catch (InvalidArgumentException $exception) {
+            throw ValidationException::withMessages(['type' => [$exception->getMessage()]]);
+        }
+
         $business->setRelation('pivot', $business->members()->whereKey($request->user()->id)->firstOrFail()->pivot);
 
         return response()->json(['data' => ['business' => new BusinessResource($business)]], 201);

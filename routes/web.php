@@ -130,8 +130,16 @@ Route::middleware('auth')->group(function (): void {
 Route::middleware(['auth', 'area:retail,grosir,agency'])->group(function (): void {
     // Daftar usaha milik akun mitra — dasar untuk memilih ruang kerja.
     Route::get('/usaha', [BusinessController::class, 'index'])->name('businesses.index');
-    // Melengkapi profil usaha yang dibuat otomatis saat pendaftaran mitra.
-    Route::patch('/usaha/{business}', [BusinessController::class, 'update'])
+
+    /*
+    | Melengkapi profil usaha hasil provisioning otomatis saat pendaftaran mitra.
+    |
+    | Jalurnya `/businesses/{business}` — sama dengan halaman detailnya — bukan
+    | `/usaha/{business}`. Sebelumnya PATCH ada di `/usaha/...` sedangkan GET ada di
+    | `/businesses/...`, sehingga membuka `/usaha/4` di browser menghasilkan 405
+    | "GET not supported": satu sumber daya dengan dua alamat bukan hal yang wajar.
+    */
+    Route::patch('/businesses/{business}', [BusinessController::class, 'update'])
         ->whereNumber('business')
         ->name('businesses.update');
 });

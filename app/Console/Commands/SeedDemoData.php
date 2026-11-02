@@ -72,13 +72,11 @@ class SeedDemoData extends Command
                 ],
             );
 
-            if (! $agency->members()->whereKey($owner->getKey())->exists()) {
-                $agency->members()->attach($owner, [
-                    'role' => 'pemilik',
-                    'status' => 'active',
-                    'joined_at' => now(),
-                ]);
-            }
+            // Lihat catatan di blok warung: syncWithoutDetaching memperbaiki baris
+            // yang menyimpang saat seed dijalankan ulang.
+            $agency->members()->syncWithoutDetaching([
+                $owner->getKey() => ['role' => 'pemilik', 'status' => 'active'],
+            ]);
 
             app(LedgerAccountSeeder::class)->ensureBusinessAccounts($agency);
 
@@ -96,13 +94,9 @@ class SeedDemoData extends Command
                 ['user_id' => $ops->getKey(), 'role' => 'ops'],
             );
 
-            if (! $agency->members()->whereKey($driver->getKey())->exists()) {
-                $agency->members()->attach($driver, [
-                    'role' => 'driver',
-                    'status' => 'active',
-                    'joined_at' => now(),
-                ]);
-            }
+            $agency->members()->syncWithoutDetaching([
+                $driver->getKey() => ['role' => 'driver', 'status' => 'active'],
+            ]);
 
             $driverMembership = BusinessMember::query()
                 ->where('business_id', $agency->getKey())
@@ -230,21 +224,19 @@ class SeedDemoData extends Command
                 ],
             );
 
-            if (! $warung->members()->whereKey($warungOwner->getKey())->exists()) {
-                $warung->members()->attach($warungOwner, [
-                    'role' => 'pemilik',
-                    'status' => 'active',
-                    'joined_at' => now(),
-                ]);
-            }
-
-            if (! $warung->members()->whereKey($guardUser->getKey())->exists()) {
-                $warung->members()->attach($guardUser, [
-                    'role' => 'penjaga',
-                    'status' => 'active',
-                    'joined_at' => now(),
-                ]);
-            }
+            /*
+            | syncWithoutDetaching, bukan attach bersyarat.
+            |
+            | Versi lama hanya menambah baris bila belum ada. Akibatnya data yang
+            | menyimpang — misalnya penjaga yang barisnya hilang atau statusnya
+            | bukan `active` — tidak pernah diperbaiki oleh seed ulang, dan aplikasi
+            | native tidak menemukan warungnya lewat `/v1/me/memberships`. Seed yang
+            | baik harus mendatangkan keadaan yang sama setiap kali dijalankan.
+            */
+            $warung->members()->syncWithoutDetaching([
+                $warungOwner->getKey() => ['role' => 'pemilik', 'status' => 'active'],
+                $guardUser->getKey() => ['role' => 'penjaga', 'status' => 'active'],
+            ]);
 
             $wholesaler = Business::query()->updateOrCreate(
                 ['code' => 'GM-GROSIR-DEMO'],
@@ -256,13 +248,9 @@ class SeedDemoData extends Command
                 ],
             );
 
-            if (! $wholesaler->members()->whereKey($wholesalerOwner->getKey())->exists()) {
-                $wholesaler->members()->attach($wholesalerOwner, [
-                    'role' => 'pemilik',
-                    'status' => 'active',
-                    'joined_at' => now(),
-                ]);
-            }
+            $wholesaler->members()->syncWithoutDetaching([
+                $wholesalerOwner->getKey() => ['role' => 'pemilik', 'status' => 'active'],
+            ]);
 
             $catalog = [
                 ['DEMO-SBK-001', 'Minyak Goreng 1L', 'Sembako', 'botol', '15000.00', '18000.00', 120],
@@ -377,6 +365,18 @@ class SeedDemoData extends Command
                 'status' => 'active',
                 'email_verified_at' => now(),
                 'account_type' => $type->value,
+                /*
+                | Akun demo tidak memakai verifikasi dua langkah.
+                |
+                | Bukan karena fiturnya dimatikan: 2FA tetap berjalan untuk akun
+                | sungguhan. Masalahnya, kalau akun demo menyala, setiap uji manual
+                | berhenti di layar kode dan orang harus membuka Mailpit dulu untuk
+                | melanjutkan — termasuk admin, yang justru akun pertama yang dibuka
+                | saat memeriksa konsol. Seeder menuliskannya eksplisit supaya
+                | keadaan ini bisa diulang, bukan bergantung pada apa yang terbawa
+                | dari percobaan sebelumnya.
+                */
+                'two_factor_enabled_at' => null,
             ],
         );
     }

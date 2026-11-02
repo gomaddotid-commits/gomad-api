@@ -67,13 +67,23 @@ class AuthController extends Controller
             $started = $startChallenge->execute($user, TwoFactorChallenge::PURPOSE_LOGIN, $request->ip());
             $user->notify(new TwoFactorCodeNotification($started['code'], 'login'));
 
+            /*
+            | Tantangan MFA dijawab 428, bukan 200 dengan bentuk berbeda.
+            |
+            | Dua bentuk pada status yang sama membuat kontrak menulis `anyOf`,
+            | dan generator Dart memilih satu bentuk saja: login yang berhasil
+            | terbaca sebagai tantangan MFA, sehingga aplikasi gagal masuk.
+            | Satu status = satu bentuk = klien bisa dibaca tanpa menebak.
+            */
             return response()->json([
+                'message' => 'Akun ini memakai verifikasi dua langkah. Masukkan kode yang dikirim.',
+                'code' => 'MFA_REQUIRED',
                 'data' => [
                     'mfa_required' => true,
-                    'mfa_token' => $started['token'],
+                    'mfa_token' => (string) $started['token'],
                     'expires_at' => $started['challenge']->expires_at?->toIso8601String(),
                 ],
-            ]);
+            ], 428);
         }
 
         $token = $user->createToken(

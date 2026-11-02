@@ -5,6 +5,7 @@ namespace App\Core\Identity\Application\Actions;
 use App\Core\Identity\Domain\AccountType;
 use App\Models\Business;
 use App\Models\BusinessInvitation;
+use App\Models\BusinessMember;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -78,6 +79,30 @@ final class AcceptBusinessInvitation
                 throw ValidationException::withMessages([
                     'identity' => ['Akun ini tidak dapat menerima undangan.'],
                 ]);
+            }
+
+            /*
+            | Satu penjaga, satu warung.
+            |
+            | Penjaga berdiri di belakang satu meja kasir; kalau ia boleh tersebar di
+            | beberapa warung, uang yang ia pegang dan laporan yang ia lihat menjadi
+            | kabur. Pemilik justru sebaliknya: boleh punya beberapa warung dan
+            | berpindah di antara mereka. Karena itu aturannya melekat pada peran
+            | `penjaga`, bukan pada tipe akun.
+            */
+            if ($invitation->role === 'penjaga') {
+                $otherWarung = BusinessMember::query()
+                    ->where('user_id', $user->getKey())
+                    ->where('role', 'penjaga')
+                    ->where('status', 'active')
+                    ->where('business_id', '!=', $invitation->business_id)
+                    ->exists();
+
+                if ($otherWarung) {
+                    throw ValidationException::withMessages([
+                        'invitation' => ['Akun penjaga hanya boleh menjadi anggota satu warung. Keluarkan dulu dari warung sebelumnya.'],
+                    ]);
+                }
             }
 
             $membership = $invitation->business->members()

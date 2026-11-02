@@ -151,7 +151,7 @@ class TwoFactorAuthTest extends TestCase
             'identity' => $user->email,
             'password' => 'KataSandiRahasia123!',
             'device_name' => 'uji',
-        ])->assertOk()
+        ])->assertStatus(428)
             ->assertJsonPath('data.mfa_required', true);
 
         $token = $login->json('data.mfa_token');

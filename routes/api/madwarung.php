@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\MadWarung\WarungCatalogController;
 use App\Http\Controllers\Api\V1\MadWarung\WarungMemberLimitController;
 use App\Http\Controllers\Api\V1\MadWarung\WarungOrderController;
+use App\Http\Controllers\Api\V1\MadWarung\WarungPosController;
 use App\Http\Controllers\Api\V1\MadWarung\WarungReportController;
 use App\Http\Controllers\Api\V1\MadWarung\WarungShiftController;
 use Illuminate\Support\Facades\Route;
@@ -43,6 +44,25 @@ Route::middleware(['auth:sanctum', 'area:retail,grosir'])->group(function (): vo
         ->name('api.v1.warung.orders.complete');
 
     Route::get('/warung/reports', [WarungReportController::class, 'show'])->name('api.v1.warung.reports.show');
+
+    /*
+    | Kasir (POS). `pos.sell` untuk penjaga, `pos.report` untuk pemilik —
+    | pembagiannya sama dengan layar web, diperiksa di controller.
+    |
+    | Usaha adalah bagian dari jalur, bukan isi badan permintaan: dengan begitu
+    | generator kontrak membaca `business` sebagai parameter bertipe dan klien
+    | Dart bisa memanggilnya tanpa menebak nama field badan pada GET.
+    */
+    Route::get('/warung/businesses/{business}/pos', [WarungPosController::class, 'listings'])
+        ->whereNumber('business')
+        ->name('api.v1.warung.pos.listings');
+    Route::post('/warung/businesses/{business}/pos/sales', [WarungPosController::class, 'store'])
+        ->whereNumber('business')
+        ->middleware('throttle:money')
+        ->name('api.v1.warung.pos.sales.store');
+    Route::get('/warung/businesses/{business}/pos/sales', [WarungPosController::class, 'sales'])
+        ->whereNumber('business')
+        ->name('api.v1.warung.pos.sales.index');
 
     Route::get('/warung/businesses/{business}/shifts', [WarungShiftController::class, 'index'])
         ->name('api.v1.warung.shifts.index');

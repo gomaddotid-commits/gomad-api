@@ -84,9 +84,16 @@ class DriverTravelController extends Controller
             'vehicle:id,name,plate_number,capacity',
         ]);
 
+        /*
+        | Hanya pesanan yang masih berlaku.
+        |
+        | Pesanan batal/kedaluwarsa sudah melepas kursinya, jadi menampilkannya
+        | sebagai penumpang membuat supir menunggu orang yang tidak akan datang.
+        */
         $bookings = TravelBooking::query()
             ->with('passengers')
             ->where('schedule_id', $schedule->getKey())
+            ->whereNotIn('status', ['cancelled', 'expired'])
             ->orderBy('id')
             ->get();
 

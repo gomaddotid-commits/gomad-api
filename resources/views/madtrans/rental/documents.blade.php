@@ -3,9 +3,9 @@
 @section('title', 'Dokumen sewa')
 
 @section('content')
-    <div class="card">
-        <h1>Dokumen untuk sewa lepas kunci</h1>
-        <p class="muted">
+    <div class="gm-surface p-5 mb-4">
+        <h1 class="gm-h2 text-black-900 mb-1">Dokumen untuk sewa lepas kunci</h1>
+        <p class="text-sm text-gray-500">
             Unggah KTP, SIM, dan selfie. Ketiganya diverifikasi <strong>admin GoMad</strong>, bukan oleh agency.
             Agency hanya dapat melihat dokumen selama sewa Anda berjalan, dan aksesnya dicabut begitu sewa selesai.
         </p>
@@ -14,11 +14,11 @@
 
     @foreach ($types as $type)
         @php $document = $documents[$type] ?? null; @endphp
-        <div class="card">
+        <div class="gm-surface p-5 mb-4">
             <div class="row">
                 <div>
                     <strong>{{ strtoupper($type) }}</strong><br>
-                    <span class="muted">
+                    <span class="text-sm text-gray-500">
                         @if ($document === null)
                             belum diunggah
                         @elseif ($document->status === 'verified')
@@ -42,7 +42,7 @@
                 <input type="hidden" name="type" value="{{ $type }}">
                 <label for="file_{{ $type }}">Berkas {{ strtoupper($type) }} (JPG/PNG/PDF, maks 4 MB)</label>
                 <input id="file_{{ $type }}" type="file" name="file" accept=".jpg,.jpeg,.png,.pdf" required>
-                <button type="submit">{{ $document === null ? 'Unggah' : 'Ganti berkas' }}</button>
+                <x-gm.button type="submit">{{ $document === null ? 'Unggah' : 'Ganti berkas' }}</x-gm.button>
             </form>
         </div>
     @endforeach
