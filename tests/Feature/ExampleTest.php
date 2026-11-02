@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
-// use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
+    // Halaman depan kini membaca data publik (rute, jadwal, mitra), jadi butuh skema.
+    use RefreshDatabase;
+
     /**
      * A basic test example.
      */

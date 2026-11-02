@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Core\Identity\Domain\AccountType;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -26,6 +27,7 @@ class UserFactory extends Factory
     {
         return [
             'name' => fake()->name(),
+            'phone' => '+62'.fake()->unique()->numerify('8##########'),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
@@ -40,6 +42,16 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
+        ]);
+    }
+
+    /**
+     * Tetapkan fungsi akun — menentukan area yang boleh dibuka.
+     */
+    public function accountType(AccountType $type): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'account_type' => $type->value,
         ]);
     }
 }

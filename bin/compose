@@ -11,6 +11,7 @@ fi
 credentials_file="$api_dir/../kredensial/aiven-mysql-db.txt"
 ca_file="$api_dir/../kredensial/aiven-ca.pem"
 r2_credentials_file="$api_dir/../kredensial/cloudflare-storage-r2.txt"
+midtrans_credentials_file="$api_dir/../kredensial/midtrans-sandbox.txt"
 
 if [[ ! -r "$credentials_file" || ! -r "$ca_file" || ! -r "$r2_credentials_file" ]]; then
     printf 'Aiven credentials, Aiven CA certificate, and R2 credentials must exist and be readable in ../kredensial/.\n' >&2
@@ -20,13 +21,13 @@ fi
 LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" \
 MYSQL_ATTR_SSL_CA=/run/secrets/aiven-ca.pem \
 MYSQL_ATTR_SSL_VERIFY_SERVER_CERT=true \
-    python3 /dev/fd/3 "$api_dir" "$credentials_file" "$r2_credentials_file" "$@" 3<<'PY'
+    python3 /dev/fd/3 "$api_dir" "$credentials_file" "$r2_credentials_file" "$midtrans_credentials_file" "$@" 3<<'PY'
 import os
 import re
 import subprocess
 import sys
 
-api_dir, aiven_file, r2_file, *compose_args = sys.argv[1:]
+api_dir, aiven_file, r2_file, midtrans_file, *compose_args = sys.argv[1:]
 
 
 def labelled_value(lines: list[str], label: str) -> str:
@@ -40,6 +41,18 @@ def labelled_value(lines: list[str], label: str) -> str:
             if value:
                 return value
     raise SystemExit(f'Required R2 credential field is missing: {label}')
+
+
+def keyed_value(lines: list[str], key: str, *, optional: bool = False) -> str:
+    for line in lines:
+        normalized = line.strip().strip('`*_# ')
+        if normalized.startswith(key+'='):
+            return normalized.split('=', 1)[1].strip().strip('"\'')
+        if normalized.startswith(key+':'):
+            return normalized.split(':', 1)[1].strip().strip('"\'')
+    if optional:
+        return ''
+    raise SystemExit(f'Required Midtrans credential field is missing: {key}')
 
 
 with open(r2_file, encoding='utf-8') as source:
@@ -66,12 +79,31 @@ environment.update({
     'AWS_USE_PATH_STYLE_ENDPOINT': 'false',
 })
 
+if os.path.isfile(midtrans_file):
+    with open(midtrans_file, encoding='utf-8') as source:
+        midtrans_lines = source.read().splitlines()
+
+    environment.update({
+        'MIDTRANS_SERVER_KEY': keyed_value(midtrans_lines, 'MIDTRANS_SERVER_KEY'),
+        'MIDTRANS_CLIENT_KEY': keyed_value(midtrans_lines, 'MIDTRANS_CLIENT_KEY'),
+        'MIDTRANS_MERCHANT_ID': keyed_value(midtrans_lines, 'MIDTRANS_MERCHANT_ID'),
+        'MIDTRANS_IS_PRODUCTION': keyed_value(midtrans_lines, 'MIDTRANS_IS_PRODUCTION'),
+        'MIDTRANS_SNAP_URL': keyed_value(midtrans_lines, 'MIDTRANS_SNAP_URL'),
+    })
+
 command = [
     'docker', 'compose',
     '--env-file', os.path.join(api_dir, '.env'),
     '--env-file', aiven_file,
-    '-f', os.path.join(api_dir, 'docker/compose.yaml'),
-    *compose_args,
 ]
+
+# Mode database lokal: dipakai saat instance Aiven tidak tersedia.
+local_override = os.path.join(api_dir, '.env.local-db')
+if os.path.isfile(local_override):
+    command += ['--env-file', local_override]
+    environment['MYSQL_ATTR_SSL_CA'] = ''
+    environment['MYSQL_ATTR_SSL_VERIFY_SERVER_CERT'] = 'false'
+
+command += ['-f', os.path.join(api_dir, 'docker/compose.yaml'), *compose_args]
 subprocess.run(command, cwd=api_dir, env=environment, check=True)
 PY

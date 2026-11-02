@@ -71,7 +71,14 @@ jobs:
         run: php artisan migrate:fresh --seed --force
       - name: Check generated API contract
         run: |
-          php artisan scramble:export --path=openapi/openapi.yaml
+          contract_db=/tmp/gomad-openapi-contract.sqlite
+          if [[ -e "$contract_db" ]]; then
+            echo "OpenAPI contract database path already exists." >&2
+            exit 1
+          fi
+          trap 'rm -f /tmp/gomad-openapi-contract.sqlite /tmp/gomad-openapi-contract.sqlite-journal' EXIT
+          DB_CONNECTION=sqlite DB_DATABASE="$contract_db" php artisan migrate:fresh --force
+          DB_CONNECTION=sqlite DB_DATABASE="$contract_db" php artisan scramble:export --path=openapi/openapi.yaml
           git diff --exit-code -- openapi/openapi.yaml
       - name: Notify the mobile repository when the API contract changes
         if: github.event_name == 'push'
@@ -91,13 +98,14 @@ jobs:
             echo "Mobile notification is not configured; set the MOBILE_REPOSITORY_TOKEN secret." >&2
             exit 1
           fi
-          if (( $(wc -c < openapi/openapi.yaml) > 60000 )); then
-            echo "The generated API contract is too large for a repository_dispatch payload." >&2
+          contract_gzip_base64="$(gzip -c openapi/openapi.yaml | base64 -w0)"
+          if (( ${#contract_gzip_base64} > 60000 )); then
+            echo "The compressed API contract is too large for a repository_dispatch payload." >&2
             exit 1
           fi
           payload="$(jq -n --arg repository "$SOURCE_REPOSITORY" --arg sha "$EVENT_SHA" \
-            --rawfile contract openapi/openapi.yaml \
-            '{event_type:"gomad-api-contract-updated",client_payload:{api_repository:$repository,contract_sha:$sha,contract_document:$contract}}')"
+            --arg contract "$contract_gzip_base64" \
+            '{event_type:"gomad-api-contract-updated",client_payload:{api_repository:$repository,contract_sha:$sha,contract_gzip_base64:$contract}}')"
           curl --fail-with-body --silent --show-error \
             --request POST \
             --header "Accept: application/vnd.github+json" \

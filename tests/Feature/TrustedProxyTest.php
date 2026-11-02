@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Vite;
 use Tests\TestCase;
 
 class TrustedProxyTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_forwarded_https_is_used_for_vite_asset_urls(): void
     {
         Vite::useHotFile(sys_get_temp_dir().'/gomad-vite-hot-'.bin2hex(random_bytes(8)));

@@ -67,3 +67,35 @@ if [[ "$table_count" -eq 0 ]]; then
 fi
 
 printf 'Backup restored successfully into disposable database %s (%s tables).\n' "$restore_database" "$table_count"
+
+# Pemulihan baru sah bila skema hasil restore sama dengan migration DAN saldo ledger cocok.
+restore_env=(
+    -e DB_CONNECTION=mysql
+    -e DB_HOST=db
+    -e DB_PORT=3306
+    -e "DB_DATABASE=${restore_database}"
+    -e DB_USERNAME=root
+    -e "DB_PASSWORD=${DB_ROOT_PASSWORD:-gomad-root-local}"
+    -e DB_URL=
+    -e MYSQL_ATTR_SSL_CA=
+)
+
+if ! bash bin/compose exec -T "${restore_env[@]}" app php artisan gomad:schema-check; then
+    printf 'Restored schema does not match the migrations.\n' >&2
+    exit 1
+fi
+
+if ! bash bin/compose exec -T "${restore_env[@]}" app php artisan gomad:reconcile; then
+    printf 'Restored database failed ledger reconciliation.\n' >&2
+    exit 1
+fi
+
+account_count="$(bash bin/compose exec -T db sh -c \
+    'exec mariadb --protocol=TCP --user=root --password="$MARIADB_ROOT_PASSWORD" --batch --skip-column-names -e "$1"' \
+    sh "SELECT COUNT(*) FROM \`${restore_database}\`.ledger_accounts;")"
+
+if [[ "$account_count" -eq 0 ]]; then
+    printf 'PERINGATAN: backup tidak memuat bagan akun; verifikasi ini hanya struktural.\n' >&2
+fi
+
+printf 'Restored database verified: schema matches migrations and ledger reconciles.\n'

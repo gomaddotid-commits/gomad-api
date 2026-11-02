@@ -1,9 +1,437 @@
 @import 'tailwindcss';
 
+/*
+| GoMad design tokens — Unified Design System v1.0
+|
+| Sumber: `system-design-new.md` (§4 warna, §5 tipografi, §6 spasi & grid,
+| §8 token kaca, §12 aksesibilitas, §13 arsitektur token).
+|
+| Aturan yang dipegang di berkas ini:
+|
+| 1. §13.4 "never hardcode design values unnecessarily". Hex hanya muncul di blok
+|    `@theme`; Blade memakai nama token.
+| 2. §3.2 satu fondasi bersama. Dua bahasa desain dibedakan lewat **tema**
+|    (`data-theme="operational|consumer"`), bukan lewat palet kedua.
+| 3. §16.3 "must not create unrelated color palettes". Palet lama
+|    (#f8f606 / #17d600) dihapus, bukan disandingkan — dua palet yang hidup
+|    berdampingan membuat yang dipakai selalu yang paling diingat penulisnya.
+*/
+
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
+@source '../views/**/*.blade.php';
 
 @theme {
-    --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    /* Skala bawaan dibersihkan agar tidak ada stop default yang tersisa. */
+    --color-yellow-*: initial;
+    --color-green-*: initial;
+    --color-gray-*: initial;
+    --color-black-*: initial;
+    --color-lime-*: initial;
+
+    /*
+    | §4.2 Palet utama — terkunci.
+    | "Do not silently replace these with approximate shades."
+    */
+    --color-gomad-lime: #a8e62e;       /* Electric Lime — aksen merek utama */
+    --color-gomad-lime-fresh: #dfff52; /* Fresh Lime — sorotan */
+    --color-gomad-green: #258447;      /* Vibrant Green — merek sekunder */
+    --color-gomad-green-deep: #174d38; /* Deep Green — permukaan kuat */
+    --color-gomad-yellow: #f6d83d;     /* Sunny Yellow — aksen */
+
+    /* Turunan skala lime (dipakai untuk hover/aktif). */
+    --color-lime-50: #f7fde9;
+    --color-lime-100: #eefbd0;
+    --color-lime-200: #e1f8a9;
+    --color-lime-300: #d0f479;
+    --color-lime-400: #bced49;
+    --color-lime-500: #a8e62e;
+    --color-lime-600: #8ac421;
+    --color-lime-700: #6a9a1a;
+    --color-lime-800: #4d7114;
+    --color-lime-900: #31480d;
+
+    /* Turunan hijau: Vibrant Green #258447 sampai Deep Green #174d38. */
+    --color-green-50: #eaf6ee;
+    --color-green-100: #d0ead9;
+    --color-green-200: #a5d5b7;
+    --color-green-300: #74bd91;
+    --color-green-400: #47a26b;
+    --color-green-500: #258447;
+    --color-green-600: #1f6f3c;
+    --color-green-700: #1c5c34;
+    --color-green-800: #174d38;
+    --color-green-900: #10362a;
+
+    /* Turunan kuning dari Sunny Yellow #f6d83d. */
+    --color-yellow-50: #fefaea;
+    --color-yellow-100: #fdf3c6;
+    --color-yellow-200: #fbe88f;
+    --color-yellow-300: #f8de5d;
+    --color-yellow-400: #f6d83d;
+    --color-yellow-500: #e9c31f;
+    --color-yellow-600: #c79f16;
+    --color-yellow-700: #9e7b13;
+    --color-yellow-800: #745911;
+    --color-yellow-900: #4a380b;
+
+    /*
+    | §4.2 Netral. Nama token lama (`gray-*`, `black-*`) dipertahankan supaya
+    | puluhan halaman ikut berubah tanpa disentuh satu per satu (§13.4 "reuse").
+    */
+    --color-gray-50: #f7faf2;  /* Cloud White  — latar utama */
+    --color-gray-100: #f1f3ef; /* Soft Gray    — latar sekunder */
+    --color-gray-200: #e4e8e1; /* Border Gray  — garis */
+    --color-gray-300: #d3d9cf; /* Border Gray  — garis kontrol */
+    --color-gray-400: #a7b0a6;
+    /*
+    | §4.2 menyebut Muted Gray #7d887d untuk teks sekunder, tetapi rasionya
+    | terhadap putih hanya 3,69:1 — gagal §12.1 (4,5:1). Nilai di bawah satu
+    | tingkat lebih gelap (4,69:1) agar teks sekunder tetap terbaca;
+    | `gomad-muted` menyimpan nilai dokumen untuk permukaan, bukan teks.
+    */
+    --color-gray-500: #6b776c;
+    --color-gray-600: #5e6a5f;
+    --color-gray-700: #4a554b;
+
+    --color-black-950: #131f17;
+    --color-black-900: #263b2b; /* Deep Olive — teks utama (12,06:1 vs putih) */
+    --color-black-800: #33493a;
+    --color-black-700: #3f5746;
+
+    --color-white: #ffffff;
+
+    /* §4.2 — nilai dokumen, untuk permukaan/placeholder non-teks. */
+    --color-gomad-muted: #7d887d;
+
+    /* §4.3 Warna semantik — terpisah dari warna merek. */
+    --color-success-600: #258447;
+    --color-warning-600: #d99a18;
+    --color-error-600: #d64545;
+    --color-info-600: #3278b7;
+    --color-neutral-600: #7d887d;
+
+    /* Permukaan: satu nama, nilainya diganti tema. */
+    --color-surface-base: #f7faf2;
+    --color-surface-subtle: #f1f3ef;
+    --color-surface-raised: #ffffff;
+    /* Alias lama — masih dipakai beberapa halaman. */
+    --color-surface-dashboard: #f7faf2;
+
+    /*
+    | §7.3 radius operasional 8–16px; §8.3 glass-radius 20px.
+    | Satu skala dipakai kedua tema supaya komponen bersama tidak pecah.
+    */
+    --radius-*: initial;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --radius-2xl: 28px;
+    --radius-pill: 999px;
+
+    /* §7.2 "restrained shadows" operasional; §8.3 bayangan ambient untuk kaca. */
+    --shadow-*: initial;
+    --shadow-sm: 0 1px 2px rgb(38 59 43 / 0.06);
+    --shadow-md: 0 4px 12px rgb(38 59 43 / 0.08);
+    --shadow-lg: 0 12px 32px rgb(38 59 43 / 0.1);
+    --shadow-xl: 0 20px 50px rgb(38 59 43 / 0.14);
+    --shadow-glass: 0 8px 32px rgb(38 59 43 / 0.08);
+
+    /*
+    | §5.1 Inter adalah typeface utama seluruh produk; Plus Jakarta Sans adalah
+    | alternatifnya. Montserrat hanya untuk branding/campaign, bukan interface.
+    */
+    --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-display: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+    /*
+    | §6.1 spasi basis 4px — sama dengan skala bawaan Tailwind, jadi tidak
+    | dideklarasikan ulang (nilai identik hanya membuat sumber kebenaran kedua).
+    */
+}
+
+/* §4.4 komposisi operasional: 75% netral. Lantai halaman tetap tenang. */
+@layer base {
+    body {
+        background-color: var(--color-surface-base);
+        color: var(--color-black-900);
+        font-family: var(--font-sans);
+        -webkit-font-smoothing: antialiased;
+    }
+
+    /*
+    | §8.2 "soft gradient backgrounds" untuk tema consumer.
+    |
+    | Gradien adalah lapisan latar, bukan `background` pada elemen bergulir,
+    | sehingga tidak ikut ter-scroll dan tidak merusak `position: sticky`
+    | pada CTA pemesanan.
+    */
+    html[data-theme='consumer'] body {
+        background-image:
+            radial-gradient(1100px 600px at 8% -12%, rgb(168 230 46 / 0.28), transparent 68%),
+            radial-gradient(900px 520px at 96% 4%, rgb(246 216 61 / 0.24), transparent 66%),
+            radial-gradient(800px 700px at 50% 110%, rgb(37 132 71 / 0.14), transparent 70%);
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }
+
+    /* §12.3 fokus harus terlihat; §12.10 tetap terbaca di atas kaca. */
+    :focus-visible {
+        outline: 2px solid var(--color-green-500);
+        outline-offset: 2px;
+    }
+
+    /*
+    | Kontrol formulir dasar.
+    |
+    | `:where()` menahan spesifisitas di nol, sehingga kelas utilitas pada komponen
+    | (`x-gm.button`, `x-gm.card`) tetap menang. Tanpa ini, halaman lama yang memakai
+    | `<input>`/`<select>` polos tampil seperti browser bawaan — persis yang terjadi
+    | ketika layout inline lama diganti.
+    */
+    :where(input:not([type='checkbox']):not([type='radio']):not([type='hidden']), select, textarea) {
+        @apply w-full rounded-md border border-gray-300 bg-white px-3 py-2.5 text-sm text-black-900;
+    }
+
+    :where(label) {
+        @apply mb-1 block text-sm font-semibold text-black-900;
+    }
+
+    /* Tombol tanpa kelas (halaman lama) — tombol berkelas diurus komponennya sendiri. */
+    :where(button):not([class]) {
+        @apply mt-2 inline-flex cursor-pointer items-center rounded-md bg-green-500 px-4 py-2.5 text-sm font-semibold text-white;
+    }
+
+    :where(a) {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    :where(a:hover) {
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+
+    /* Tabel halaman lama: garis tipis, bukan tabel bawaan browser. */
+    :where(table) {
+        @apply w-full border-collapse text-sm;
+    }
+
+    :where(th) {
+        @apply border-b border-gray-200 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500;
+    }
+
+    :where(td) {
+        @apply border-b border-gray-100 px-3 py-2 align-top;
+    }
+
+    /* §12.8 hormati preferensi gerak minimal. */
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+        }
+    }
+}
+
+/* §6.2 — lebar konten maksimum 1440px, padding halaman per breakpoint. */
+@utility gm-container {
+    width: 100%;
+    max-width: 1440px;
+    margin-inline: auto;
+    padding-inline: 16px;
+
+    @media (min-width: 768px) {
+        padding-inline: 24px;
+    }
+
+    @media (min-width: 1024px) {
+        padding-inline: 32px;
+    }
+
+    @media (min-width: 1440px) {
+        padding-inline: 40px;
+    }
+}
+
+/* Wadah baca untuk halaman panjang — §6.4 "generous whitespace". */
+@utility gm-container-narrow {
+    width: 100%;
+    max-width: 760px;
+    margin-inline: auto;
+    padding-inline: 16px;
+
+    @media (min-width: 768px) {
+        padding-inline: 24px;
+    }
+}
+
+/*
+| §8.3 Token kaca.
+|
+| Garis tepi memakai hairline gelap, bukan putih 0,75 seperti nilai awal dokumen.
+| §8.3 sendiri menulis "values are initial design specifications and must be
+| validated during implementation": di atas latar gradien terang, tepi putih
+| membuat kartu kehilangan batas dan terbaca sebagai bidang yang bocor.
+| Hanya dipakai di tema consumer (§8.4, §16.3).
+*/
+@utility gm-glass {
+    background-color: rgb(255 255 255 / 0.65);
+    border: 1px solid rgb(38 59 43 / 0.1);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-glass);
+}
+
+@utility gm-glass-strong {
+    background-color: rgb(255 255 255 / 0.82);
+    border: 1px solid rgb(38 59 43 / 0.12);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-glass);
+}
+
+/*
+| §12.10 "interface must remain functional when blur effects are unavailable".
+| Tanpa dukungan backdrop-filter, kaca menjadi permukaan padat — bukan
+| transparan yang teksnya hilang di atas latar.
+*/
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .gm-glass,
+    .gm-glass-strong {
+        background-color: var(--color-surface-raised);
+    }
+}
+
+/* §7.3 permukaan operasional: padat, garis tipis, tanpa blur. */
+@utility gm-surface {
+    background-color: var(--color-surface-raised);
+    border: 1px solid var(--color-gray-200);
+    border-radius: var(--radius-lg);
+}
+
+/*
+| Geser mendatar tanpa batang gulir yang terlihat (§11.2/§11.3).
+|
+| Navigasi ponsel memang digeser mendatar, tetapi batang gulir selebar layar di
+| bawah baris menu terbaca sebagai tata letak yang rusak, bukan sebagai isyarat.
+| Isyaratnya tetap ada: tepi kanan pill terpotong.
+*/
+@utility gm-scroll-x {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+/* §9.4 / §10.2 — CTA lengket untuk alur pemesanan di ponsel. */
+@utility gm-sticky-cta {
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+    margin-inline: -16px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background-color: rgb(255 255 255 / 0.82);
+    border-top: 1px solid rgb(255 255 255 / 0.75);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+    box-shadow: var(--shadow-glass);
+
+    @media (min-width: 768px) {
+        margin-inline: 0;
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--color-gray-200);
+        padding: 16px;
+    }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .gm-sticky-cta {
+        background-color: var(--color-surface-raised);
+    }
+}
+
+/*
+| Lapisan transisi.
+|
+| Puluhan halaman lama memakai kelas sederhana (`.card`, `.row`, `.muted`) dari
+| layout inline sebelumnya. Kelas itu dipertahankan di sini supaya halaman tersebut
+| tidak rusak saat layout diganti, lalu pelan-pelan dipindahkan ke komponen `gm.*`.
+| Blok ini boleh dihapus ketika tidak ada lagi view yang memakainya.
+*/
+@layer components {
+    /*
+    | §5.2 Skala tipografi.
+    |
+    | Ukuran dokumen sudah sama dengan skala bawaan Tailwind (display 48 = text-5xl,
+    | H1 36 = text-4xl, H2 30 = text-3xl, H3 24 = text-2xl, H4 20 = text-xl), jadi
+    | yang ditambahkan di sini hanya **nama peran**, bukan angka baru.
+    */
+    .gm-display {
+        @apply text-5xl font-bold tracking-tight;
+        line-height: 1.05;
+    }
+
+    .gm-h1 {
+        @apply text-4xl font-bold tracking-tight;
+        line-height: 1.15;
+    }
+
+    .gm-h2 {
+        @apply text-3xl font-semibold tracking-tight;
+        line-height: 1.2;
+    }
+
+    .gm-h3 {
+        @apply text-2xl font-semibold;
+        line-height: 1.3;
+    }
+
+    .gm-h4 {
+        @apply text-xl font-semibold;
+        line-height: 1.35;
+    }
+
+    /* §5.2 "Label 13px / 600" — satu-satunya ukuran yang tidak ada di Tailwind. */
+    .gm-label {
+        @apply text-[13px] font-semibold;
+    }
+
+    .card {
+        @apply rounded-lg border border-gray-200 bg-white p-5 shadow-sm;
+    }
+
+    .row {
+        @apply flex flex-wrap items-center justify-between gap-3;
+    }
+
+    .muted {
+        @apply text-sm text-gray-500;
+    }
+
+    .success {
+        @apply font-medium text-success-600;
+    }
+
+    .error {
+        @apply font-medium text-error-600;
+    }
+
+    .inline {
+        @apply inline;
+    }
+
+    .inline button {
+        @apply w-auto;
+    }
 }

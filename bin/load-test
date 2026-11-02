@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Uji beban ringan: mengukur latensi & tingkat kegagalan halaman baca yang paling sering dipakai.
+# Pemakaian:  bash bin/load-test [jumlah_request] [konkurensi]
+# Prasyarat: stack lokal hidup (bash bin/compose up -d) dan data demo sudah di-seed.
+set -Eeuo pipefail
+
+api_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$api_dir"
+
+base_url="${LOAD_TEST_BASE_URL:-http://localhost:8200}"
+total="${1:-200}"
+concurrency="${2:-10}"
+email="${LOAD_TEST_EMAIL:-penumpang@gomad.test}"
+password="${LOAD_TEST_PASSWORD:-GomadDemo2026!}"
+
+work_dir="$(mktemp -d)"
+trap 'rm -rf "$work_dir"' EXIT
+
+cookie_jar="$work_dir/cookies.txt"
+
+login_token="$(curl -s -c "$cookie_jar" "$base_url/login" | grep -o 'name="_token" value="[^"]*' | head -1 | sed 's/.*value="//')"
+if [[ -z "$login_token" ]]; then
+    printf 'Tidak dapat mengambil token login dari %s/login\n' "$base_url" >&2
+    exit 1
+fi
+
+login_status="$(curl -s -b "$cookie_jar" -c "$cookie_jar" -o /dev/null -w '%{http_code}' \
+    -X POST -d "_token=${login_token}" -d "identity=${email}" -d "password=${password}" "$base_url/login")"
+if [[ "$login_status" != "302" ]]; then
+    printf 'Login gagal (status %s). Periksa LOAD_TEST_EMAIL/PASSWORD.\n' "$login_status" >&2
+    exit 1
+fi
+
+tomorrow="$(date -d '+1 day' '+%Y-%m-%d')"
+search_url="${base_url}/mad-trans?origin_city=Jakarta&destination_city=Bandung&departure_date=${tomorrow}&passengers=1"
+
+schedule_path="$(curl -s -b "$cookie_jar" "$search_url" | grep -o '/mad-trans/schedules/[0-9]*' | head -1 || true)"
+
+endpoints=("$base_url/mad-trans" "$search_url")
+if [[ -n "$schedule_path" ]]; then
+    endpoints+=("${base_url}${schedule_path}")
+fi
+
+printf 'Uji beban ringan: %s permintaan, konkurensi %s\n' "$total" "$concurrency"
+printf 'Endpoint:\n'
+printf '  - %s\n' "${endpoints[@]}"
+
+urls_file="$work_dir/urls.txt"
+: > "$urls_file"
+for i in $(seq 1 "$total"); do
+    index=$(( (i - 1) % ${#endpoints[@]} ))
+    printf '%s\n' "${endpoints[$index]}" >> "$urls_file"
+done
+
+all_file="$work_dir/all.txt"
+: > "$all_file"
+
+xargs -P "$concurrency" -I{} sh -c "curl -s -b '$cookie_jar' -o /dev/null -w '%{http_code} %{time_total}\n' '{}' || printf '000 0\n'" \
+    < "$urls_file" > "$all_file"
+
+count="$(wc -l < "$all_file" | tr -d ' ')"
+failed="$(awk '$1 !~ /^2/' "$all_file" | wc -l | tr -d ' ')"
+mean="$(awk '{sum += $2} END {if (NR > 0) printf "%.3f", sum / NR}' "$all_file")"
+p95_line=$(( (count * 95 + 99) / 100 ))
+if [[ "$p95_line" -lt 1 ]]; then p95_line=1; fi
+p95="$(sort -k2 -n "$all_file" | sed -n "${p95_line}p" | awk '{print $2}')"
+worst="$(sort -k2 -n "$all_file" | tail -1 | awk '{print $2}')"
+
+printf 'permintaan      : %s\n' "$count"
+printf 'gagal (non-2xx) : %s\n' "$failed"
+printf 'rata-rata       : %ss\n' "$mean"
+printf 'p95             : %ss\n' "$p95"
+printf 'maksimum        : %ss\n' "$worst"
+
+if [[ "$failed" -gt 0 ]]; then
+    printf 'Ada permintaan gagal; periksa log nginx/app.\n' >&2
+    exit 1
+fi

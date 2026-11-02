@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# Membangun klien Dart untuk aplikasi mobile langsung dari kontrak OpenAPI.
+#
+# Kriteria Fase 9: "Klien Dart bisa dibuat otomatis dari kontrak" — jangan pernah
+# menulis model HTTP manual di repo mobile; jalankan skrip ini setiap kali API berubah.
+set -Eeuo pipefail
+
+api_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$api_dir"
+
+mobile_dir="$api_dir/../mobile"
+contract="$api_dir/openapi/openapi.yaml"
+out_dir="$mobile_dir/api_client"
+generator_version="${OPENAPI_GENERATOR_VERSION:-v7.10.0}"
+
+export_contract=1
+for arg in "$@"; do
+    case "$arg" in
+        --no-export) export_contract=0 ;;
+        --help|-h)
+            cat <<'USAGE'
+Pemakaian: bash bin/generate-dart-client [folder-keluaran] [--no-export]
+
+  folder-keluaran  Default ../mobile/api_client (gitignored).
+  --no-export     Lewati pembuatan ulang openapi/openapi.yaml.
+
+Variabel lingkungan:
+  OPENAPI_GENERATOR_VERSION  Tag image/npm generator (default v7.10.0).
+USAGE
+            exit 0
+            ;;
+        --*) echo "Opsi tidak dikenal: $arg" >&2; exit 2 ;;
+        *) out_dir="$arg" ;;
+    esac
+done
+
+if [[ "$export_contract" == "1" ]]; then
+    echo "==> Membuat ulang kontrak dari anotasi Scramble"
+    bash bin/export-api-contract
+fi
+
+[[ -f "$contract" ]] || { echo "Kontrak $contract tidak ditemukan. Jalankan bash bin/export-api-contract." >&2; exit 1; }
+
+# Generator tidak menghapus berkas model yang sudah tidak ada di kontrak, sehingga
+# model usang (mis. dari skema lama) tetap tertinggal dan merusak build_runner.
+# Karena itu folder keluaran dibersihkan dulu — dengan pengaman agar tidak salah hapus.
+if [[ -d "$out_dir" ]]; then
+    if [[ -f "$out_dir/pubspec.yaml" ]] && grep -q '^name: gomad_api' "$out_dir/pubspec.yaml"; then
+        echo "==> Membersihkan hasil generate sebelumnya di $out_dir"
+        rm -rf -- "$out_dir"
+    else
+        echo "$out_dir sudah ada tetapi bukan hasil generator (pubspec bukan gomad_api). Dibatalkan." >&2
+        exit 1
+    fi
+fi
+
+mkdir -p -- "$out_dir"
+
+# Docker hanya bisa menulis ke volume yang di-mount, jadi seluruh repo (api/ + mobile/)
+# dibagi sebagai /local agar kontrak dan folder keluaran berada di pohon yang sama.
+mount_root="$(cd "$api_dir/.." && pwd)"
+contract_in_mount="$(realpath --relative-to="$mount_root" "$contract")"
+out_in_mount="$(realpath -m --relative-to="$mount_root" "$out_dir")"
+
+run_docker() {
+    if [[ "$out_in_mount" == ../* || "$contract_in_mount" == ../* ]]; then
+        echo "Folder kontrak/keluaran harus berada di dalam $mount_root agar bisa dipakai Docker." >&2
+        exit 1
+    fi
+
+    # Jalankan sebagai pengguna host: kalau root, hasil menjadi tidak bisa ditulis
+    # oleh build_runner maupun suntingan manual.
+    docker run --rm \
+        -u "$(id -u):$(id -g)" \
+        -v "$mount_root:/local" \
+        "openapitools/openapi-generator-cli:${generator_version}" \
+        generate \
+        -i "/local/$contract_in_mount" \
+        -g dart-dio \
+        -o "/local/$out_in_mount" \
+        --skip-validate-spec \
+        --additional-properties=pubName=gomad_api,pubVersion=1.0.0,serializationLibrary=json_serializable,nullableFields=true
+}
+
+if command -v openapi-generator-cli >/dev/null 2>&1; then
+    echo "==> Memakai openapi-generator-cli lokal"
+    openapi-generator-cli generate \
+        -i "$contract" -g dart-dio -o "$out_dir" --skip-validate-spec \
+        --additional-properties=pubName=gomad_api,pubVersion=1.0.0,serializationLibrary=json_serializable,nullableFields=true
+elif command -v docker >/dev/null 2>&1; then
+    echo "==> Memakai image Docker openapitools/openapi-generator-cli:${generator_version}"
+    run_docker
+elif command -v npx >/dev/null 2>&1; then
+    echo "==> Memakai npx @openapitools/openapi-generator-cli"
+    npx --yes "@openapitools/openapi-generator-cli@${generator_version}" generate \
+        -i "$contract" -g dart-dio -o "$out_dir" --skip-validate-spec \
+        --additional-properties=pubName=gomad_api,pubVersion=1.0.0,serializationLibrary=json_serializable,nullableFields=true
+else
+    cat >&2 <<'MISSING'
+Tidak ada generator yang tersedia.
+
+Pasang salah satu:
+  * Docker (disarankan): docker pull openapitools/openapi-generator-cli:v7.10.0
+  * npm: npm install -g @openapitools/openapi-generator-cli
+  * Java jar: unduh openapi-generator-cli.jar lalu taruh di PATH sebagai openapi-generator-cli
+MISSING
+    exit 1
+fi
+
+echo "==> Menyesuaikan pubspec agar klien bisa dipakai langsung"
+if [[ -f "$out_dir/pubspec.yaml" ]]; then
+    # Template dart-dio memakai SDK lama (>=2.17) dan json_serializable versi tua.
+    # json_serializable modern memakai null-aware elements (Dart 3.8), jadi batas
+    # bawah SDK harus dinaikkan atau build_runner gagal saat memformat hasil.
+    python3 - "$out_dir/pubspec.yaml" <<'PY'
+import re
+import sys
+
+path = sys.argv[1]
+text = open(path).read()
+
+text = re.sub(r"^environment:\n(?:  .*\n)+", "environment:\n  sdk: '>=3.8.0 <4.0.0'\n", text, count=1, flags=re.M)
+text = re.sub(r"^dependencies:\n(?:  .*\n)+", "dependencies:\n  dio: ^5.0.0\n  json_annotation: any\n", text, count=1, flags=re.M)
+text = re.sub(r"^dev_dependencies:\n(?:  .*\n)+", "dev_dependencies:\n  build_runner: any\n  json_serializable: any\n  test: any\n", text, count=1, flags=re.M)
+
+open(path, "w").write(text)
+PY
+fi
+
+if command -v dart >/dev/null 2>&1; then
+    echo "==> dart pub get"
+    (cd "$out_dir" && dart pub get)
+
+    echo "==> dart run build_runner build (menghasilkan *.g.dart)"
+    (cd "$out_dir" && dart run build_runner build)
+
+    echo "==> dart analyze (memastikan klien bisa dikompilasi)"
+    analyze_log="$(mktemp)"
+    (cd "$out_dir" && dart analyze lib >"$analyze_log" 2>&1 || true)
+    if grep -q "error - " "$analyze_log"; then
+        grep "error - " "$analyze_log" | head -20
+        echo "Klien Dart gagal dikompilasi — periksa kontrak atau versi generator." >&2
+        rm -f "$analyze_log"
+        exit 1
+    fi
+    echo "    tidak ada error analisis"
+    rm -f "$analyze_log"
+else
+    echo "    (dart belum terpasang — jalankan 'dart pub get' lalu 'dart run build_runner build' di $out_dir)"
+fi
+
+cat <<DONE
+
+Selesai. Klien Dart dibuat dari kontrak $contract
+Tambahkan ke pubspec aplikasi mobile:
+
+  dependencies:
+    gomad_api:
+      path: api_client
+
+Lalu:
+  import 'package:gomad_api/api.dart';
+
+Jangan menulis ulang model HTTP manual — regenerasi setiap kontrak berubah:
+  bash bin/generate-dart-client
+DONE

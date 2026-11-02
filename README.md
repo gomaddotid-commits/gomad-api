@@ -65,7 +65,9 @@ writeable bind mounts:
 
 ```sh
 bash bin/compose up -d --build
-bash bin/compose exec app php artisan migrate --seed
+bash bin/compose exec app php artisan migrate --force
+bash bin/compose exec app php artisan db:seed --class="App\Core\Access\Infrastructure\AccessControlSeeder" --force
+bash bin/compose exec app php artisan db:seed --class="App\Core\Ledger\Infrastructure\LedgerAccountSeeder" --force
 bash bin/test
 bash bin/compose exec app php artisan app:reset-demo
 bash bin/compose logs -f
@@ -83,7 +85,10 @@ Use `bash bin/test` rather than running tests in the local app environment; it
 forces an in-memory SQLite database so tests cannot reset or write to the
 development Aiven database. The unused Aiven schema was initialized for GoMad
 after explicit approval to drop its former tables. Continue with additive
-`migrate --seed` only. `app:reset-demo` is reserved for a disposable local
+`migrate --force`, the access-control seeder, and the ledger-account seeder
+only; `DatabaseSeeder` creates a demo user and must not be run against Aiven. Assign an initial platform admin
+only after account registration with
+`php artisan app:assign-platform-admin <nomor-telepon>`. `app:reset-demo` is reserved for a disposable local
 database and refuses to run against remote MySQL servers; never run
 `migrate:fresh` against Aiven again.
 
@@ -95,7 +100,9 @@ connections verify TLS using the Aiven CA. Verify a dump by restoring it into a
 disposable local MariaDB instance (started only for this check):
 
 ```sh
-bash bin/compose exec app php artisan migrate --seed
+bash bin/compose exec app php artisan migrate --force
+bash bin/compose exec app php artisan db:seed --class="App\Core\Access\Infrastructure\AccessControlSeeder" --force
+bash bin/compose exec app php artisan db:seed --class="App\Core\Ledger\Infrastructure\LedgerAccountSeeder" --force
 bash bin/compose exec app php artisan app:backup-db
 bash bin/verify-backup-restore
 ```
