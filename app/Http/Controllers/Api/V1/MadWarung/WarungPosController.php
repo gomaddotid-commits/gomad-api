@@ -96,7 +96,7 @@ class WarungPosController extends Controller
             ], 422);
         }
 
-        return response()->json(['data' => new RetailSaleResource($sale)], 201);
+        return response()->json(['data' => new RetailSaleResource($sale->load(['items', 'seller:id,name']))], 201);
     }
 
     public function sales(Request $request, Business $business, ActionAuthorizer $authorizer): JsonResponse

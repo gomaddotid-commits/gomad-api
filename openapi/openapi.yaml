@@ -8690,17 +8690,7 @@
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "allOf": [
-                                                {
-                                                    "$ref": "#/components/schemas/RetailSaleResource"
-                                                },
-                                                {
-                                                    "type": "object",
-                                                    "required": [
-                                                        "items"
-                                                    ]
-                                                }
-                                            ]
+                                            "$ref": "#/components/schemas/RetailSaleResource"
                                         }
                                     },
                                     "required": [
@@ -10690,6 +10680,7 @@
                     },
                     "items": {
                         "type": "array",
+                        "description": "| `items` sengaja tidak memakai `whenLoaded`.\n|\n| Field bersyarat membuat generator kontrak menulis\n| `allOf: [RetailSaleResource, {required: [items]}]`, dan klien Dart\n| menggabungkannya menjadi kelas baru yang kehilangan nullability\n| (`shift_id`, `paid_amount`, `note`). Akibatnya aplikasi gagal membaca\n| nota yang sebenarnya sudah tersimpan. Controller selalu memuat\n| relasi ini, jadi bentuk tetapnya aman.",
                         "items": {
                             "type": "object",
                             "properties": {
@@ -10740,7 +10731,8 @@
                     "paid_amount",
                     "change_amount",
                     "note",
-                    "created_at"
+                    "created_at",
+                    "items"
                 ],
                 "title": "RetailSaleResource"
             },

@@ -35,14 +35,24 @@ class RetailSaleResource extends JsonResource
             'change_amount' => $this->change_amount,
             'note' => $this->note,
             'created_at' => $this->created_at?->toIso8601String(),
-            'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item): array => [
+            /*
+            | `items` sengaja tidak memakai `whenLoaded`.
+            |
+            | Field bersyarat membuat generator kontrak menulis
+            | `allOf: [RetailSaleResource, {required: [items]}]`, dan klien Dart
+            | menggabungkannya menjadi kelas baru yang kehilangan nullability
+            | (`shift_id`, `paid_amount`, `note`). Akibatnya aplikasi gagal membaca
+            | nota yang sebenarnya sudah tersimpan. Controller selalu memuat
+            | relasi ini, jadi bentuk tetapnya aman.
+            */
+            'items' => $this->items->map(fn ($item): array => [
                 'product_id' => $item->product_id,
                 'product_name' => $item->product_name,
                 'unit' => $item->unit,
                 'quantity' => $item->quantity,
                 'unit_price' => $item->unit_price,
                 'subtotal' => $item->subtotal,
-            ])->all()),
+            ])->values(),
         ];
     }
 }

@@ -39,7 +39,9 @@ class DriverScheduleController extends Controller
                 'route:id,origin_city,destination_city',
                 'vehicle:id,name,plate_number,capacity',
             ])
-            ->withCount('bookings')
+            // Pesanan batal/kedaluwarsa tidak dihitung: kalau dihitung, daftar
+            // bilang "3 pesanan" sementara rinciannya 0/0.
+            ->withCount(['bookings' => fn ($query) => $query->whereNotIn('status', ['cancelled', 'expired'])])
             ->orderBy('departure_date')
             ->orderBy('departure_time')
             ->limit(50)
@@ -59,7 +61,7 @@ class DriverScheduleController extends Controller
                 'route:id,origin_city,destination_city',
                 'vehicle:id,name,plate_number,capacity',
             ])
-            ->withCount('bookings')
+            ->withCount(['bookings' => fn ($query) => $query->whereNotIn('status', ['cancelled', 'expired'])])
             ->orderByDesc('departure_date')
             ->orderByDesc('departure_time')
             ->limit(10)

@@ -39,7 +39,8 @@ class DriverTravelController extends Controller
                 'route:id,origin_city,destination_city',
                 'vehicle:id,name,plate_number',
             ])
-            ->withCount('bookings')
+            // Sama seperti rincian tugas: pesanan batal tidak dihitung.
+            ->withCount(['bookings' => fn ($query) => $query->whereNotIn('status', ['cancelled', 'expired'])])
             ->orderBy('departure_date')
             ->orderBy('departure_time')
             ->limit(50)
